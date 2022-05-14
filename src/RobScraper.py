@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from PyPDF2 import PdfFileReader
 from config import app_logger
+from datetime import datetime
 
 
 class RobScraper:
@@ -43,7 +44,10 @@ class RobScraper:
         try:
             link_to_rob = self.link_to_rob_[index]
             read = requests.get(link_to_rob)
-            total_pages = PdfFileReader(io.BytesIO(read.content)).numPages
+            pdf_file_reader = PdfFileReader(io.BytesIO(read.content))
+            total_pages = pdf_file_reader.numPages
+            date = pdf_file_reader.documentInfo["/ModDate"]
+            self.date_ = datetime.strptime(date.replace("'", ""), "D:%Y%m%d%H%M%S%z")
             df_rob = pd.concat([tabula.read_pdf(link_to_rob, pages="1", encoding="cp1252",  # Page 1
                                                 area=[10, 0, 95, 100], relative_area=True, multiple_tables=False,
                                                 pandas_options={"header": None,
@@ -73,6 +77,7 @@ def main():
     rob_scraper = RobScraper()
     rob_scraper.find_rob()
     rob_scraper.scrape_rob()
+    print(rob_scraper.date_)
 
 
 if __name__ == "__main__":
