@@ -35,18 +35,24 @@ class RobScraper:
         self.link_to_rob_ = list_of_links
         return self.link_to_rob_
 
-    def scrape_rob(self, index=0) -> pd.DataFrame:
+    def scrape_rob(self, index=0, local_path_to_rob=None) -> pd.DataFrame:
         """
         Scrapes the current pdf-file of rescued seal pups and saves it in a pandas.DataFrame
         :param index: The index in list self.link_to_rob_ that identifies the link to the pdf to scrape from
         :return: A pandas.DataFrame that contains information about rescued seal pups
         """
         try:
-            link_to_rob = self.link_to_rob_[index]
-            read = requests.get(link_to_rob)
-            pdf_file_reader = PdfFileReader(io.BytesIO(read.content))
+            if local_path_to_rob is None:
+                link_to_rob = self.link_to_rob_[index]
+                read = requests.get(link_to_rob)
+                pdf_obj = io.BytesIO(read.content)
+            else:
+                link_to_rob = local_path_to_rob
+                pdf_obj = open(local_path_to_rob, 'rb')
+            pdf_file_reader = PdfFileReader(pdf_obj)
             total_pages = pdf_file_reader.numPages
             date = pdf_file_reader.documentInfo["/ModDate"]
+            pdf_obj.close()
             self.date_ = datetime.strptime(date.replace("'", ""), "D:%Y%m%d%H%M%S%z")
             df_rob = pd.concat([tabula.read_pdf(link_to_rob, pages="1", encoding="cp1252",  # Page 1
                                                 area=[10, 0, 95, 100], relative_area=True, multiple_tables=False,
@@ -59,12 +65,18 @@ class RobScraper:
                                                 pandas_options={"header": None,
                                                                 "names": ["Fundort", "Einlieferungsdatum", "Tierart",
                                                                           "Aktuell"]})[0]]).reset_index(drop=True)
+
+            df_rob["Einlieferungsdatum"] = pd.to_datetime(df_rob["Einlieferungsdatum"], format="%d.%m.%Y")
             self.df_rob_ = df_rob
             return self.df_rob_
         except AttributeError:
             app_logger.exception(
                 "The RobScraper has no attribute link_to_rob_. "
                 "Have you run function find_rob already?")
+        except FileNotFoundError:
+            app_logger.exception(
+                "The RobScraper cannot find the file specified in attribute local_path_to_rob. "
+                "Are you sure the file exists?")
         except requests.exceptions.MissingSchema:
             app_logger.exception(
                 "The URL stored in RobScraper attribute link_to_rob_ is invalid. "
