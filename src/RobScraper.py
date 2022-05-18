@@ -11,11 +11,16 @@ from datetime import datetime
 
 
 class RobScraper:
+    """
+    The RobScraper object can be used to scrape a pdf-file containing information about rescued seal pups and save
+    it to a pandas dataframe. The pdf can be accessed either on the website of Seehundstation Friedrichskoog or in a
+    downloaded pdf that is stored in the local file system.
+    """
     def find_rob(self) -> list:
         """
         Finds the link to the current pdf-file of rescued seal pups.
-        :return: A list of links that are likely to contain the current pdf-file of rescued seal pups. Ideally, the
-        list is of length 1.
+        :return (list): A list of links that are likely to contain the current pdf-file of rescued seal pups. Ideally,
+        the list is of length 1.
         """
         url = "https://www.seehundstation-friedrichskoog.de/aktuelle-saison/"
         read = requests.get(url)
@@ -35,11 +40,12 @@ class RobScraper:
         self.link_to_rob_ = list_of_links
         return self.link_to_rob_
 
-    def scrape_rob(self, index=0, local_path_to_rob=None) -> pd.DataFrame:
+    def scrape_rob(self, index: int = 0, local_path_to_rob: str = None) -> pd.DataFrame:
         """
         Scrapes the current pdf-file of rescued seal pups and saves it in a pandas.DataFrame
-        :param index: The index in list self.link_to_rob_ that identifies the link to the pdf to scrape from
-        :return: A pandas.DataFrame that contains information about rescued seal pups
+        :param index (int): The index in list self.link_to_rob_ that identifies the link to the pdf to scrape from
+        :param local_path_to_rob (str): Local path that identifies the link to the pdf to scrape from
+        :return (pd.DataFrame): A pandas.DataFrame that contains information about rescued seal pups
         """
         try:
             if local_path_to_rob is None:
