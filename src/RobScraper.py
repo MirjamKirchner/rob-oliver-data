@@ -19,7 +19,7 @@ class RobScraper:
     def find_rob(self) -> list:
         """
         Finds the link to the current pdf-file of rescued seal pups.
-        :return (list): A list of links that are likely to contain the current pdf-file of rescued seal pups. Ideally,
+        :return: (list) A list of links that are likely to contain the current pdf-file of rescued seal pups. Ideally,
         the list is of length 1.
         """
         url = "https://www.seehundstation-friedrichskoog.de/aktuelle-saison/"
@@ -40,21 +40,21 @@ class RobScraper:
         self.link_to_rob_ = list_of_links
         return self.link_to_rob_
 
-    def scrape_rob(self, index: int = 0, local_path_to_rob: str = None) -> pd.DataFrame:
+    def scrape_rob(self, index: int = 0, path_to_raw: str = None) -> pd.DataFrame:
         """
         Scrapes the current pdf-file of rescued seal pups and saves it in a pandas.DataFrame
-        :param index (int): The index in list self.link_to_rob_ that identifies the link to the pdf to scrape from
-        :param local_path_to_rob (str): Local path that identifies the link to the pdf to scrape from
-        :return (pd.DataFrame): A pandas.DataFrame that contains information about rescued seal pups
+        :param index: (int) The index in list self.link_to_rob_ that identifies the link to the pdf to scrape from
+        :param path_to_raw: (str) Local path that identifies the link to the pdf to scrape from
+        :return: (pd.DataFrame) A pandas.DataFrame that contains information about rescued seal pups
         """
         try:
-            if local_path_to_rob is None:
+            if path_to_raw is None:
                 link_to_rob = self.link_to_rob_[index]
                 read = requests.get(link_to_rob)
                 pdf_obj = io.BytesIO(read.content)
             else:
-                link_to_rob = local_path_to_rob
-                pdf_obj = open(local_path_to_rob, 'rb')
+                link_to_rob = path_to_raw
+                pdf_obj = open(path_to_raw, 'rb')
             pdf_file_reader = PdfFileReader(pdf_obj)
             total_pages = pdf_file_reader.numPages
             date = pdf_file_reader.documentInfo["/ModDate"]

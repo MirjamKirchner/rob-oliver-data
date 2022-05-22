@@ -28,7 +28,7 @@ class RobHistorizer:
     def _save_rob(self, save_copy: bool):
         """
         Saves the historized information about rescued seal pups in the csv-file rob.csv.
-        :param save_copy (bool): If true then a time stamp is attached to the file name, i.e., the orginal file is not
+        :param save_copy: (bool) If true then a time stamp is attached to the file name, i.e., the orginal file is not
         overwritten.
         :return: None
         """
@@ -45,7 +45,7 @@ class RobHistorizer:
     def _preprocess_new_rob(self) -> pd.DataFrame:
         """
         Preprocesses raw data about rescued seal pups in self.rob_scraper.df_rob_ for historization
-        :return (pd.DataFrame): Preprocessed raw data about rescued seal pups
+        :return: (pd.DataFrame) Preprocessed raw data about rescued seal pups
         """
         # Get copy of df_rob_
         df_new_rob = self.rob_scraper.df_rob_.copy()
@@ -76,10 +76,10 @@ class RobHistorizer:
 
         return df_new_rob
 
-    def historize_rob(self, save_copy=True):
+    def historize_rob(self, save_copy: bool = True):
         """
         Historizes and saves the raw data about rescued seal pups in self.rob_scraper.df_rob_
-        :param save_copy (bool): If true then the historized data about rescued seal pups not saved in rob.csv but a copy
+        :param save_copy: (bool) If true then the historized data about rescued seal pups not saved in rob.csv but a copy
         :return: None
         """
         # Get new and old dataset
@@ -114,7 +114,7 @@ class RobHistorizer:
 def main():
     rob_scraper = RobScraper()
     rob_scraper.find_rob()
-    #rob_scraper.scrape_rob(local_path_to_rob=os.path.join(PATH_TO_DATA, "raw", "20220429_1.6HomepageHeuler.pdf"))
+    #rob_scraper.scrape_rob(path_to_raw=os.path.join(PATH_TO_DATA, "raw", "20220429_1.6HomepageHeuler.pdf"))
     rob_scraper.scrape_rob()
     rob_historizer = RobHistorizer(rob_scraper)
     rob_historizer.historize_rob(save_copy=False)
