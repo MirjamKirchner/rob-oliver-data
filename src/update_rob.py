@@ -7,7 +7,7 @@ from config import PATH_TO_DATA
 
 PROJECT_NAME = "rob-oliver"
 DATASET_NAME = "rob"
-PATH_TO_ROB = os.path.join(PATH_TO_DATA, "processed/rob.csv")
+PATH_TO_ROB = os.path.join(PATH_TO_DATA, "interim/rob.csv")
 
 
 def _update_rob_file_system(path_to_raw: str = None):

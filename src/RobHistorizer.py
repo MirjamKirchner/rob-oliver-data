@@ -1,13 +1,15 @@
 import pandas as pd
 import os
 import sys
+import pytz
 from hashlib import sha256
 from config import PATH_TO_DATA
 from datetime import datetime
 from RobScraper import RobScraper
 from config import app_logger
 
-PATH_TO_ROB = os.path.join(PATH_TO_DATA, "processed/rob.csv")
+PATH_TO_ROB = os.path.join(PATH_TO_DATA, "interim/rob.csv")
+CET = pytz.timezone("CET")  # central European Summer time
 
 
 class RobHistorizer:
@@ -16,7 +18,7 @@ class RobHistorizer:
      """
     def __init__(self, rob_scraper: RobScraper):
         self.rob_scraper = rob_scraper
-        self.df_historized_rob = pd.read_csv(PATH_TO_ROB)
+        self.df_historized_rob = pd.read_csv(PATH_TO_ROB)  # TODO simplify dtype conversion. See RobEngineer
         self.df_historized_rob[["Einlieferungsdatum", "Erstellt_am", "Sys_aktualisiert_am", "Sys_geloescht"]] = \
             self.df_historized_rob[["Einlieferungsdatum", "Erstellt_am", "Sys_aktualisiert_am", "Sys_geloescht"]].astype(
                 {"Einlieferungsdatum": "datetime64[ns]",
@@ -35,12 +37,12 @@ class RobHistorizer:
         if save_copy:
             self.df_historized_rob.sort_values(
                 by=["Sys_aktualisiert_am", "Einlieferungsdatum"]
-            ).to_csv(os.path.join(PATH_TO_DATA, "processed", datetime.now().strftime("%m-%d-%Y_%H-%M-%S_") + "rob.csv"),
+            ).to_csv(os.path.join(PATH_TO_DATA, "interim", datetime.now().strftime("%m-%d-%Y_%H-%M-%S_") + "rob.csv"),
                      index=False)
         else:
             self.df_historized_rob.sort_values(
                 by=["Sys_aktualisiert_am", "Einlieferungsdatum"]
-            ).to_csv(os.path.join(PATH_TO_DATA, "processed", "rob.csv"), index=False)
+            ).to_csv(os.path.join(PATH_TO_DATA, "interim", "rob.csv"), index=False)
 
     def _preprocess_new_rob(self) -> pd.DataFrame:
         """
@@ -52,7 +54,7 @@ class RobHistorizer:
 
         # Set ID as hash of "Fundort", "Einlieferungsdatum", "Tierart" and enumeration index of the former
         df_new_rob = df_new_rob.assign(order=df_new_rob.groupby(["Fundort", "Einlieferungsdatum",
-                                                                   "Tierart"]).cumcount())
+                                                                 "Tierart"]).cumcount())
         df_new_rob.insert(loc=0,
                           column="Sys_id",
                           value=df_new_rob[
@@ -63,11 +65,11 @@ class RobHistorizer:
         assert df_new_rob["Sys_id"].nunique() == df_new_rob["Sys_id"].size, app_logger.error("Row IDs are not unique.")
 
         # Add technical columns
-        df_new_rob["Erstellt_am"] = self.rob_scraper.date_
+        df_new_rob["Erstellt_am"] = self.rob_scraper.date_.strftime("%Y-%m-%d %H:%M:%S")
         df_new_rob = df_new_rob.join(pd.DataFrame({"Sys_geloescht": pd.Series(dtype="int32"),
                                                    "Sys_aktualisiert_am": pd.Series(dtype="datetime64[ns]")}))
 
-        # For each row, hash columns non-technical columns for historization purposes
+        # For each row, hash non-technical columns for historization purposes
         df_new_rob["Sys_hash"] = df_new_rob[
             ["Sys_id", "Fundort", "Einlieferungsdatum", "Tierart", "Aktuell"]
         ].apply(lambda row: sha256(row.to_string(index=False).encode('utf-8')).hexdigest(), axis=1)
@@ -117,7 +119,7 @@ def main():
     #rob_scraper.scrape_rob(path_to_raw=os.path.join(PATH_TO_DATA, "raw", "20220429_1.6HomepageHeuler.pdf"))
     rob_scraper.scrape_rob()
     rob_historizer = RobHistorizer(rob_scraper)
-    rob_historizer.historize_rob(save_copy=False)
+    #rob_historizer.historize_rob(save_copy=False)
 
 
 if __name__ == "__main__":
