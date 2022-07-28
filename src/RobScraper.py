@@ -12,7 +12,7 @@ from datetime import datetime
 
 class RobScraper:
     """
-    The RobScraper object can be used to scrape a pdf-file containing information about rescued seal pups and save
+    The RobScraper can be used to scrape a pdf-file containing information about rescued seal pups and save
     it to a pandas dataframe. The pdf can be accessed either on the website of Seehundstation Friedrichskoog or in a
     downloaded pdf that is stored in the local file system.
     """

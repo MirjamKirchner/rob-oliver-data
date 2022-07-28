@@ -19,11 +19,16 @@ def _update_rob_file_system(path_to_raw: str,
                             path_to_rob: str,
                             path_to_rob_engineered: str,
                             path_to_finding_places: str,
-                            latest_update: datetime):
+                            latest_update: datetime) -> (RobScraper, RobHistorizer, RobEngineer):
     """
     Updates the file in PATH_TO_ROB.
-    :param path_to_raw: (str) Optional path to a local pdf-file containing information about rescued seal pups. If None,
+    :param path_to_raw: (str) Path to a local pdf-file containing information about rescued seal pups. If None,
     the function scrapes the current version from the website.
+    :param path_to_rob: (str) Path to a csv-file in which the web-scraped data is to be stored
+    :param path_to_rob_engineered: (str) Path to a csv-file in which the preprocessed data used is to be stored
+    :param path_to_finding_places: (str) Path to a csv-file in which the finding places of seal pups are catalogued
+    :param latest_update: (datetime) The date after which entries in the csv-file stored in path_to_rob_engineered are
+    computed
     :return: None
     """
     # Scrape data
@@ -47,17 +52,21 @@ def update_rob_clearml(path_to_raw: str = None,
                        path_to_rob: str = PATH_TO_ROB,
                        path_to_rob_engineered: str = PATH_TO_ROB_ENGINEERED,
                        path_to_finding_places: str = PATH_TO_FINDING_PLACES,
-                       latest_update: datetime = None):
+                       latest_update: datetime = None) -> None:
     """
     Controls the version of the data in PATH_TO_ROB using clearml's Dataset-
     class (https://clear.ml/docs/latest/docs/references/sdk/dataset).
     :param path_to_raw: (str) Optional path to a local pdf-file containing information about rescued seal pups. If None,
     the function scrapes the current version from the website.
-    :param path_to_rob: (str) Path to a csv-file in which the data is to be stored
+    :param path_to_rob: (str) Path to a csv-file in which the web-scraped data is to be stored
+    :param path_to_rob_engineered: (str) Path to a csv-file in which the preprocessed data used is to be stored
+    :param path_to_finding_places: (str) Path to a csv-file in which the finding places of seal pups are catalogued
+    :param latest_update: (datetime) The date after which entries in the csv-file stored in path_to_rob_engineered are
+    computed
     :return: None
     TODO update doc string
     """
-    # Get most recent update in rob engineered
+    # Get latest update in rob engineered
     if latest_update is None:
         latest_update = pd.read_csv(path_to_rob_engineered,
                                     parse_dates=["Einlieferungsdatum",
@@ -66,6 +75,7 @@ def update_rob_clearml(path_to_raw: str = None,
                                     date_parser=pd.to_datetime)["Sys_aktualisiert_am"].max()
         latest_update = pd.to_datetime("1990-04-30") if (latest_update !=
                                                          latest_update) else latest_update
+    print(latest_update)
 
 
     # Update local files

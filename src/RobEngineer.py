@@ -18,20 +18,25 @@ PATH_TO_FINDING_PLACES = os.path.join(PATH_TO_DATA, "processed/catalogued_findin
 
 
 class RobGui(PandasGui):
-    """TODO comment"""
     def __init__(self, path_to_rob_engineered: str, path_to_finding_places: str, settings={}, **kwargs):
         """
-        TODO comment
-        :param path_to_rob_engineered:
-        :param path_to_finding_places:
-        :param settings:
-        :param kwargs:
+        Child class of PandasGui with a customised close event
+        :param path_to_rob_engineered: (str) Path to a csv-file in which the preprocessed data used is to be stored
+        :param path_to_finding_places: (str) Path to a csv-file in which the finding places of seal pups are catalogued
+        :param settings: (Dict) settings
+        :param kwargs: additional keyword arguments
         """
         self.path_to_rob_engineered = path_to_rob_engineered
         self.path_to_finding_places = path_to_finding_places
         super().__init__(settings=settings, **kwargs)
 
     def closeEvent(self, e: QtGui.QCloseEvent) -> None:
+        """
+        Stores the pre-processed data with potential manual changes in the csv-files self.path_to_rob_engineered and
+        self.path_to_finding_places, when the respective RobGui is closed.
+        :param e: (QtGui.QCloseEvent) Close event
+        :return: None
+        """
         # Update and save rob_engineered
         df_engineered_rob = self.get_dataframes()["rob_engineered"]
         df_engineered_rob.drop("Fundort", axis=1, inplace=True)
@@ -50,16 +55,18 @@ class RobGui(PandasGui):
 
 
 class RobEngineer:
-    """
-    TODO Comment
-    """
     def __init__(self, latest_update: datetime = pd.to_datetime("1990-04-30"),
                  path_to_rob: str = PATH_TO_ROB,
                  path_to_rob_engineered: str = PATH_TO_ROB_ENGINEERED,
                  path_to_finding_places: str = PATH_TO_FINDING_PLACES):
         """
-        TODO Comment
-        :param latest_update:
+        The RobEngineer pre-processes data scraped from the website of the Seehundstation Friedrichskoog, and engineers
+        additional features.
+        :param latest_update: (datetime) The date after which entries in the csv-file stored in path_to_rob_engineered
+        are computed
+        :param path_to_rob: (str) Path to a csv-file in which the web-scraped data is to be stored
+        :param path_to_rob_engineered: (str) Path to a csv-file in which the preprocessed data used is to be stored
+        :param path_to_finding_places: (str) Path to a csv-file in which the finding places of seal pups are catalogued
         """
         self.latest_update = latest_update
         self.path_to_rob = path_to_rob
@@ -89,8 +96,8 @@ class RobEngineer:
 
     def _geoparse_rob(self) -> None:
         """
-        TODO Comment
-        :return:
+        Parses finding places stored in self.df_engineered_rob to spatial coordinates
+        :return: None
         """
         self.df_engineered_rob.insert(loc=self.df_engineered_rob.columns.get_loc("Fundort")+1,
                                       column="Mapped Fundort",
@@ -113,11 +120,17 @@ class RobEngineer:
 
     def _show_rob_engineered(self, settings={}, **kwargs) -> RobGui:
         """
+        Some preprocessing steps require human checks and, if need be, correction. This task is facilitated by opening
+        the preprocessed data in a RobGui, a customized PandasGui (see https://github.com/adamerose/pandasgui).
+
         Objects provided as args and kwargs should be any of the following:
         DataFrame   Show it using PandasGui
         Series      Show it using PandasGui
         Figure      Show it using FigureViewer. Supports figures from plotly, bokeh, matplotlib, altair
         dict/list   Show it using JsonViewer
+        :param settings: (Dict) settings
+        :param kwargs: additional keyword arguments
+        :return: (RobGui) An instance of class RobGui
         """
         logger.info("Opening PandasGUI")
         # Get the variable names in the scope show() was called from
@@ -151,10 +164,10 @@ class RobEngineer:
 
         return pandas_gui
 
-    def engineer_rob(self):
+    def engineer_rob(self) -> None:
         """
-        TODO Comment
-        :return:
+        Executes all pre-processing and feature-engineering steps.
+        :return: None
         """
         self._geoparse_rob()
         self._show_rob_engineered()
