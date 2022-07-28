@@ -14,9 +14,14 @@ CET = pytz.timezone("CET")  # central European Summer time
 
 class RobHistorizer:
     """
-        The RobHistorizer historizes information about seal pups rescued by the Seehundstation Friedrichskoog.
+
      """
     def __init__(self, rob_scraper: RobScraper):
+        """
+        The RobHistorizer historizes information about seal pups rescued by the Seehundstation Friedrichskoog.
+        :param rob_scraper: (RobScraper) A RobScraper that contains raw data scraped from the website of Seehundstation
+        Friedrichskoog.
+        """
         self.rob_scraper = rob_scraper
         self.df_historized_rob = pd.read_csv(PATH_TO_ROB)  # TODO simplify dtype conversion. See RobEngineer
         self.df_historized_rob[["Einlieferungsdatum", "Erstellt_am", "Sys_aktualisiert_am", "Sys_geloescht"]] = \
@@ -78,10 +83,11 @@ class RobHistorizer:
 
         return df_new_rob
 
-    def historize_rob(self, save_copy: bool = True):
+    def historize_rob(self, save_copy: bool = True) -> None:
         """
         Historizes and saves the raw data about rescued seal pups in self.rob_scraper.df_rob_
-        :param save_copy: (bool) If true then the historized data about rescued seal pups not saved in rob.csv but a copy
+        :param save_copy: (bool) If true then the historized data about rescued seal pups not saved in rob.csv but a
+        copy
         :return: None
         """
         # Get new and old dataset
