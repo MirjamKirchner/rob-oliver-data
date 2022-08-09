@@ -92,18 +92,17 @@ class RobEngineer:
                                                            "Sys_aktualisiert_am"],
                                               date_parser=pd.to_datetime)
                                   [lambda x: x["Sys_aktualisiert_am"] <= latest_update])
-        self.df_engineered_rob = pd.concat([self.df_engineered_rob, df_historized_rob], axis=0)
+        self.df_engineered_rob = pd.concat([self.df_engineered_rob, df_historized_rob], axis=0, ignore_index=True)
 
     def _geoparse_rob(self) -> None:
         """
         Parses finding places stored in self.df_engineered_rob to spatial coordinates
         :return: None
         """
-        self.df_engineered_rob.insert(loc=self.df_engineered_rob.columns.get_loc("Fundort")+1,
-                                      column="Mapped Fundort",
-                                      value=np.nan)
-
         slice = self.df_engineered_rob["Sys_aktualisiert_am"] >= self.latest_update
+        self.df_engineered_rob.insert(loc=self.df_engineered_rob.columns.get_loc("Fundort") + 1,
+                                      column="Mapped Fundort",
+                                      value=self.df_engineered_rob["Fundort"].mask(slice))
         indices = self.df_engineered_rob.loc[slice, "Fundort"].dropna().index
 
         df_finding_places = pd.read_csv(self.path_to_finding_places, dtype={"Long": "float64", "Lat": "float64"})
@@ -177,5 +176,5 @@ if __name__ == "__main__":
     #from pandasgui.datasets import pokemon
     #rob_gui = RobGui("test1", "test2", items={"pokemon": pokemon})
 
-    rob_engineer = RobEngineer()
-    rob_engineer.engineer_rob()
+    rob_engineer = RobEngineer(latest_update=pd.to_datetime("2022-08-07 21:23:39.380217"))
+    rob_engineer._geoparse_rob()
