@@ -37,7 +37,18 @@ df_time_series = create_time_series()
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, "/static/seehundstation_friedrichskoog.css"])
 
 app.layout = html.Div([
-    html.H1("Current Season"),
+    html.Img(src="/static/img/Seehundheader1.jpg"),
+    html.Div([
+        html.Small(children=["Data are provided by ",
+                             html.A(
+                                 href="https://www.seehundstation-friedrichskoog.de/",
+                                 children="Seehundstation Friedrichskoog. ",
+                                 style={"color": "#004d9e"}
+                             ),
+                             "Last update on DATE OF THE LAST UPDATE"]
+                   )
+    ]),
+    html.P('Dash converts Python classes into HTML'),
     html.Div(children="Baby seals man!"),
     html.Div(
         [
