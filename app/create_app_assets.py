@@ -96,4 +96,4 @@ def get_marks(df):
 
 
 if __name__ == "__main__":
-    create_time_series()
+    create_part_to_whole()
