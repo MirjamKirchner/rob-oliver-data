@@ -11,7 +11,7 @@ import pandas as pd
 import folium as fm
 from datetime import datetime
 
-from create_app_assets import create_part_to_whole, create_time_series, create_bubbles, get_marks, DF_ENGINEERED_ROB
+from create_app_assets import create_part_to_whole, create_time_series, create_bubbles, get_marks, DF_ROB
 import plotly.io as pio
 
 pio.templates.default = "simple_white"
@@ -68,8 +68,8 @@ app.layout = html.Div([
     html.Div(dcc.RangeSlider(
         allowCross=False,
         id="date-slider",
-        min=pd.Timestamp(DF_ENGINEERED_ROB["Einlieferungsdatum"].min()-pd.Timedelta(days=14)).timestamp(),
-        max=pd.Timestamp(DF_ENGINEERED_ROB["Einlieferungsdatum"].max()+pd.Timedelta(days=14)).timestamp(),
+        min=pd.Timestamp(DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
+        max=pd.Timestamp(DF_ROB["Einlieferungsdatum"].max() + pd.Timedelta(days=14)).timestamp(),
         marks=get_marks(df_time_series.set_index("Admission date")),)
     ),
     #html.Div(id="out-date-slider")

@@ -5,11 +5,11 @@ from datetime import datetime
 import numpy as np
 import datetime
 
-PATH_TO_ROB_ENGINEERED = os.path.join(PATH_TO_DATA, "processed/rob_engineered.csv")
+PATH_TO_ROB = os.path.join(PATH_TO_DATA, "interim/rob.csv")
 
 
 def _load_engineered_rob():
-    df_engineered_rob = pd.read_csv(PATH_TO_ROB_ENGINEERED)
+    df_engineered_rob = pd.read_csv(PATH_TO_ROB)
     df_engineered_rob[["Long", "Lat", "Einlieferungsdatum", "Erstellt_am", "Sys_aktualisiert_am", "Sys_geloescht"]] = \
         df_engineered_rob[
             ["Long", "Lat", "Einlieferungsdatum", "Erstellt_am", "Sys_aktualisiert_am", "Sys_geloescht"]
@@ -24,28 +24,32 @@ def _load_engineered_rob():
     return df_engineered_rob
 
 
-DF_ENGINEERED_ROB = _load_engineered_rob()
+DF_ROB = _load_engineered_rob()
 
 
 # Part to whole
 def create_part_to_whole(max_date: datetime = pd.to_datetime("today"),
                          min_date: datetime = pd.to_datetime("1990-04-30")):
-    df_time_slice = DF_ENGINEERED_ROB.loc[(DF_ENGINEERED_ROB["Einlieferungsdatum"] >= min_date) &
-                                          (DF_ENGINEERED_ROB["Erstellt_am"] < max_date) &
-                                          (DF_ENGINEERED_ROB["Sys_geloescht"] == 0),
-                                          ["Erstellt_am", "Sys_id", "Sys_geloescht"]]
+    df_time_slice = DF_ROB.loc[(DF_ROB["Einlieferungsdatum"] >= min_date) &
+                               (DF_ROB["Erstellt_am"] < max_date) &
+                               (DF_ROB["Sys_geloescht"] == 0),
+                               ["Erstellt_am", "Sys_id", "Sys_geloescht"]]
     df_latest_by_id = df_time_slice.set_index(pd.DatetimeIndex(df_time_slice["Erstellt_am"])).\
         groupby(["Sys_id"]).\
         last()
+    df_current_values = pd.merge(df_latest_by_id,
+                                 DF_ROB,
+                                 how="left",
+                                 on=["Erstellt_am", "Sys_id", "Sys_geloescht"])
     return pd.merge(df_latest_by_id,
-                    DF_ENGINEERED_ROB,
+                    DF_ROB,
                     how="left",
                     on=["Erstellt_am", "Sys_id", "Sys_geloescht"])["Aktuell"].value_counts()
 
 
 def create_time_series(max_date: datetime = pd.to_datetime("today"),
                        min_date: datetime = pd.to_datetime("1990-04-30")):
-    df_time_series = DF_ENGINEERED_ROB[["Sys_id", "Einlieferungsdatum", "Tierart"]]. \
+    df_time_series = DF_ROB[["Sys_id", "Einlieferungsdatum", "Tierart"]]. \
         drop_duplicates(). \
         groupby(["Tierart", pd.Grouper(key="Einlieferungsdatum", axis=0, freq="W-MON")]). \
         count(). \
@@ -57,13 +61,13 @@ def create_time_series(max_date: datetime = pd.to_datetime("today"),
 
 def create_bubbles(max_date: datetime = pd.to_datetime("today"),
                    min_date: datetime = pd.to_datetime("1990-04-30")):
-    df_bubbles = DF_ENGINEERED_ROB[["Sys_id", "Einlieferungsdatum", "Long", "Lat"]]. \
+    df_bubbles = DF_ROB[["Sys_id", "Einlieferungsdatum", "Long", "Lat"]]. \
         drop_duplicates(). \
         groupby(["Long", "Lat", pd.Grouper(key="Einlieferungsdatum", axis=0, freq="W-MON")]). \
         count(). \
         reset_index(). \
         rename(columns={"Einlieferungsdatum": "Admission date", "Sys_id": "Count"})
-    df_bubbles = pd.merge(df_bubbles, DF_ENGINEERED_ROB[["Long", "Lat", "Fundort"]].drop_duplicates(),
+    df_bubbles = pd.merge(df_bubbles, DF_ROB[["Long", "Lat", "Fundort"]].drop_duplicates(),
                           how="left",
                           on=["Long", "Lat"]).\
         rename(columns={"Fundort": "Finding place"})
