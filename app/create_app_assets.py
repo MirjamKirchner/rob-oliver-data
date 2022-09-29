@@ -6,7 +6,7 @@ import numpy as np
 import datetime
 
 PATH_TO_ROB = os.path.join(PATH_TO_DATA, "interim/rob.csv")
-
+# TODO: do not display outliers, i.e., seals that have been in Reha extraordinarily long
 
 def _load_engineered_rob():
     df_engineered_rob = pd.read_csv(PATH_TO_ROB)
@@ -37,10 +37,6 @@ def create_part_to_whole(max_date: datetime = pd.to_datetime("today"),
     df_latest_by_id = df_time_slice.set_index(pd.DatetimeIndex(df_time_slice["Erstellt_am"])).\
         groupby(["Sys_id"]).\
         last()
-    df_current_values = pd.merge(df_latest_by_id,
-                                 DF_ROB,
-                                 how="left",
-                                 on=["Erstellt_am", "Sys_id", "Sys_geloescht"])
     return pd.merge(df_latest_by_id,
                     DF_ROB,
                     how="left",

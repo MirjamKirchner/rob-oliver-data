@@ -187,7 +187,7 @@ class RobHistorizer:
                           column="Sys_id",
                           value=df_new_rob[
                               ["Fundort", "Einlieferungsdatum", "Tierart", "order"]
-                          ].apply(lambda row: sha256(row.to_string(index=False).encode('utf-8')).hexdigest(), axis=1))
+                          ].apply(lambda row: sha256(row.to_string(index=False).encode("utf-8")).hexdigest(), axis=1))
         df_new_rob.drop("order", inplace=True, axis=1)
 
         assert df_new_rob["Sys_id"].nunique() == df_new_rob["Sys_id"].size, app_logger.error("Row IDs are not unique.")
@@ -200,7 +200,7 @@ class RobHistorizer:
         # For each row, hash non-technical columns for historization purposes
         df_new_rob["Sys_hash"] = df_new_rob[
             ["Sys_id", "Fundort", "Einlieferungsdatum", "Tierart", "Aktuell"]
-        ].apply(lambda row: sha256(row.to_string(index=False).encode('utf-8')).hexdigest(), axis=1)
+        ].apply(lambda row: sha256(row.to_string(index=False).encode("utf-8")).hexdigest(), axis=1)
 
         self.df_new_rob_ = df_new_rob
         return df_new_rob
@@ -226,6 +226,11 @@ class RobHistorizer:
         id_exists = df_new_rob.loc[~entry_exists, "Sys_id"].isin(df_old_rob["Sys_id"])
 
         now = datetime.now()
+        # For old entries with location "Unknown", check whether there is an entry for which finding date with
+        # `id_exists == False`, i.e., an old entry was most likely manually corrected
+        df_old_rob_location_unknown = df_old_rob[(df_old_rob["Fundort"] == "Unknown") &
+                                                 (df_old_rob["Sys_geloescht"] == 0)]
+
         for index, id_flag in id_exists.items():
             # Define new entry
             new_entry = df_new_rob.iloc[index, :]
@@ -234,6 +239,16 @@ class RobHistorizer:
             if id_flag:  # Label deprecated entries of already existing ID as deleted
                 df_old_rob.loc[(df_old_rob["Sys_id"] == new_entry["Sys_id"]) & (df_old_rob["Sys_geloescht"] == 0),
                                ["Sys_geloescht", "Sys_aktualisiert_am"]] = 1, new_entry["Sys_aktualisiert_am"]
+            else:
+                is_matching_old_entry = (df_old_rob_location_unknown["Einlieferungsdatum"] == new_entry["Einlieferungsdatum"]) & \
+                                        (df_old_rob_location_unknown["Tierart"] == new_entry["Tierart"])
+                if any(is_matching_old_entry):
+                    idx_old = df_old_rob_location_unknown[is_matching_old_entry].sort_index(ascending=False).index[0]
+                    df_old_rob_location_unknown.drop([idx_old], inplace=True)
+                    df_old_rob.loc[
+                        idx_old, ["Sys_id", "Sys_geloescht", "Sys_aktualisiert_am"]
+                    ] = new_entry["Sys_id"], 1, new_entry["Sys_aktualisiert_am"]
+
             # Append new entry
             df_old_rob = pd.concat([df_old_rob, new_entry.to_frame().T], ignore_index=True)
 
