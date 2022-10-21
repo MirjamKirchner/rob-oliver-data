@@ -3,7 +3,6 @@ import logging
 import pandas as pd
 import os
 import difflib
-import numpy as np
 
 from pandasgui.gui import PandasGui
 from PyQt5 import QtGui
@@ -136,7 +135,7 @@ class RobEngineer:
         callers_local_vars = inspect.currentframe().f_back.f_locals.items()
 
         # Make a dictionary of the DataFrames from the position args and get their variable names using inspect
-        items = {"rob_engineered": self.df_engineered_rob}
+        items = {"new_rob": self.df_engineered_rob}
 
         dupes = [key for key in items.keys() if key in kwargs.keys()]
         if any(dupes):
