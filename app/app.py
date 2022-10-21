@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 import pandas as pd
-import folium as fm
+import numpy as np
 from datetime import datetime
 
 from create_app_assets import create_part_to_whole, create_time_series, create_bubbles, get_marks, DF_ROB
@@ -39,13 +39,15 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, "/static/seehun
 app.layout = html.Div([
     html.Img(src="/static/img/Seehundheader1.jpg"),
     html.Div([
-        html.Small(children=["Daten werden bereitgestellt durch ",
+        html.Small(children=["Daten werden bereitgestellt durch die ",
                              html.A(
                                  href="https://www.seehundstation-friedrichskoog.de/",
-                                 children="Seehundstation Friedrichskoog. ",
+                                 children="Seehundstation Friedrichskoog ",
                                  style={"color": "#004d9e"}
                              ),
-                             "Zuletzt aktualisiert am DATE OF THE LAST UPDATE"]
+                             "(zuletzt aktualisiert am {}).".format(
+                                 DF_ROB["Sys_aktualisiert_am"].max().strftime("%d.%m.%Y")
+                             )]
                    )
     ], style={"background-color": "#e9e2d8"}),
     html.Div(html.P("")),
@@ -65,8 +67,8 @@ app.layout = html.Div([
                                                 width=3),
                                             dbc.Col(html.Div([html.P(["Willkommen Robben-Freund!", html.Br(),
                                                                       "Hier kannst du Informationen zu den Robbenfunden der Seehundstation in Friedrichskoog untersuchen."]),
-                                                              html.P(["Im Diagramm links siehst du den Anteil in Reha befindlichen, ausgewilderten und verstorbenen Robben "
-                                                                      "im Zeitraum VON BIS.", html.Br(),
+                                                              html.P(["Im Diagramm links siehst du den Anteil der in Reha befindlichen, ausgewilderten und verstorbenen Robben "
+                                                                      "im Zeitraum ", html.A(id="val-date-range"), html.Br(),
                                                                       "Unter diesem Text siehst du eine Karte, in der die ungefähren Fundorte der eingelieferten Robben "
                                                                       "eingetragen sind.", html.Br(),
                                                                       "Im letzten Bild kannst du dir ansehen, wann wie viele Robben in die Station eingeliefert worden sind."]),
@@ -74,7 +76,7 @@ app.layout = html.Div([
                                                                      " in den Grafiken dargestellt werden. Wenn du ein bestimmtest Zeitfenster genauer betrachten möchtest,"
                                                                      " musst du nur den linken und rechten Kreis verschieben, um den Start- bzw. den Endzeitpunkt "
                                                                      "anzupassen.", html.Br(),
-                                                                     "Probier es doch mal aus :-) Viel Spaß!"])])),
+                                                                     "Probier es doch mal aus 😄 Viel Spaß! ", html.A(href="https://www.mirjam-kirchner.com/", children="🐼💚"),])])),
                                         ]
                                     )
                                 ]
@@ -87,8 +89,11 @@ app.layout = html.Div([
                                 min=pd.Timestamp(
                                     DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
                                 max=pd.Timestamp(
-                                    DF_ROB["Einlieferungsdatum"].max() + pd.Timedelta(days=14)).timestamp(),
-                                marks=get_marks(df_time_series.set_index("Admission date")), )
+                                    DF_ROB["Erstellt_am"].max() + pd.Timedelta(days=14)).timestamp(),
+                                marks=get_marks(pd.Timestamp(DF_ROB["Einlieferungsdatum"].min()),
+                                                pd.Timestamp(DF_ROB["Erstellt_am"].max())),  # TODO update so that updates are also considered as marks
+                                value=[pd.Timestamp(DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
+                                       pd.Timestamp(DF_ROB["Erstellt_am"].max() + pd.Timedelta(days=14)).timestamp()])
                             )
                         ])
 
@@ -115,12 +120,9 @@ app.layout = html.Div([
     Output("fig-part-to-whole", "figure"),
     Input("date-slider", "value"))
 def update_fig_part_to_whole(selected_range):
-    if selected_range is None:
-        ds_part_to_whole = create_part_to_whole()
-    else:
-        min_date = datetime.fromtimestamp(selected_range[0])
-        max_date = datetime.fromtimestamp(selected_range[1])
-        ds_part_to_whole = create_part_to_whole(max_date=max_date, min_date=min_date)
+    min_date = datetime.fromtimestamp(selected_range[0])
+    max_date = datetime.fromtimestamp(selected_range[1])
+    ds_part_to_whole = create_part_to_whole(max_date=max_date, min_date=min_date)
 
     fig_part_to_whole = go.Figure(data=[go.Pie(labels=ds_part_to_whole.index,
                                                values=ds_part_to_whole.values,
@@ -129,7 +131,7 @@ def update_fig_part_to_whole(selected_range):
     fig_part_to_whole.update_layout(
         showlegend=False,
         annotations=[dict(
-            text="no data<br>available" if ds_part_to_whole.sum() == 0 else str(ds_part_to_whole.sum()) + "<br>in total",
+            text="keine Daten<br>verfügbar" if ds_part_to_whole.sum() == 0 else str(ds_part_to_whole.sum()) + "<br>total",
             x=0.5,
             y=0.5,
             xref="paper",
@@ -150,17 +152,14 @@ def update_fig_part_to_whole(selected_range):
     Output("fig-bubbles", "figure"),
     Input("date-slider", "value"))
 def update_fig_bubbles(selected_range):
-    if selected_range is None:
-        df_bubbles = create_bubbles()
-    else:
-        min_date = datetime.fromtimestamp(selected_range[0])
-        max_date = datetime.fromtimestamp(selected_range[1])
-        df_bubbles = create_bubbles(max_date=max_date, min_date=min_date)
+    min_date = datetime.fromtimestamp(selected_range[0])
+    max_date = datetime.fromtimestamp(selected_range[1])
+    df_bubbles = create_bubbles(max_date=max_date, min_date=min_date)
 
     fig_bubbles = px.scatter_mapbox(df_bubbles,
                                     lat="Lat",
                                     lon="Long",
-                                    size="Count",
+                                    size="Anzahl",
                                     zoom=7,
                                     center={"lat": 54.43388, "lon": 9.57109})
     fig_bubbles.update_traces(
@@ -182,17 +181,14 @@ def update_fig_bubbles(selected_range):
     Output("fig-time-series", "figure"),
     Input("date-slider", "value"))
 def update_fig_time_series(selected_range):
-    if selected_range is None:
-        df_time_series_slider = df_time_series
-    else:
-        min_date = datetime.fromtimestamp(selected_range[0])
-        max_date = datetime.fromtimestamp(selected_range[1])
-        df_time_series_slider = create_time_series(max_date=max_date, min_date=min_date)
-    color_discrete_map = {"Seehund": "#086E7D", "Kegelrobbe": "#34BE82", "sonstige": "#F47340"}
+    min_date = datetime.fromtimestamp(selected_range[0])
+    max_date = datetime.fromtimestamp(selected_range[1])
+    df_time_series_slider = create_time_series(max_date=max_date, min_date=min_date)
+    color_discrete_map = {"Seehund": "#086E7D", "Kegelrobbe": "#34BE82", "sonstige": "#DC434A"}
     fig_time_series = px.line(df_time_series_slider,
-                              x="Admission date",
-                              y="Count",
-                              color="Breed",
+                              x="Einlieferungswoche",
+                              y="Anzahl",
+                              color="Tierart",
                               markers=True,
                               color_discrete_map=color_discrete_map)
     fig_time_series.update_layout(
@@ -209,5 +205,14 @@ def update_fig_time_series(selected_range):
     return fig_time_series
 
 
-if __name__ == '__main__':
+@app.callback(
+    Output("val-date-range", "children"),
+    Input("date-slider", "value"))
+def update_date_range(selected_range):
+    min_date = datetime.fromtimestamp(selected_range[0]).strftime("%d.%m.%Y")
+    max_date = datetime.fromtimestamp(selected_range[1]).strftime("%d.%m.%Y")
+    return "{} - {}.".format(min_date, max_date)
+
+
+if __name__ == "__main__":
     app.run_server(debug=True)

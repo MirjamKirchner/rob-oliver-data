@@ -8,6 +8,7 @@ import datetime
 PATH_TO_ROB = os.path.join(PATH_TO_DATA, "interim/rob.csv")
 # TODO: do not display outliers, i.e., seals that have been in Reha extraordinarily long
 
+
 def _load_engineered_rob():
     df_engineered_rob = pd.read_csv(PATH_TO_ROB)
     df_engineered_rob[["Long", "Lat", "Einlieferungsdatum", "Erstellt_am", "Sys_aktualisiert_am", "Sys_geloescht"]] = \
@@ -50,9 +51,9 @@ def create_time_series(max_date: datetime = pd.to_datetime("today"),
         groupby(["Tierart", pd.Grouper(key="Einlieferungsdatum", axis=0, freq="W-MON")]). \
         count(). \
         reset_index(). \
-        rename(columns={"Tierart": "Breed", "Einlieferungsdatum": "Admission date", "Sys_id": "Count"})
-    return df_time_series[(df_time_series["Admission date"] >= min_date) &
-                          (df_time_series["Admission date"] < max_date)]
+        rename(columns={"Einlieferungsdatum": "Einlieferungswoche", "Sys_id": "Anzahl"})
+    return df_time_series[(df_time_series["Einlieferungswoche"] >= min_date) &
+                          (df_time_series["Einlieferungswoche"] < max_date)]
 
 
 def create_bubbles(max_date: datetime = pd.to_datetime("today"),
@@ -62,16 +63,15 @@ def create_bubbles(max_date: datetime = pd.to_datetime("today"),
         groupby(["Long", "Lat", pd.Grouper(key="Einlieferungsdatum", axis=0, freq="W-MON")]). \
         count(). \
         reset_index(). \
-        rename(columns={"Einlieferungsdatum": "Admission date", "Sys_id": "Count"})
+        rename(columns={"Sys_id": "Anzahl"})
     df_bubbles = pd.merge(df_bubbles, DF_ROB[["Long", "Lat", "Fundort"]].drop_duplicates(),
                           how="left",
-                          on=["Long", "Lat"]).\
-        rename(columns={"Fundort": "Finding place"})
-    return df_bubbles[(df_bubbles["Admission date"] >= min_date) &
-                      (df_bubbles["Admission date"] < max_date)]
+                          on=["Long", "Lat"])
+    return df_bubbles[(df_bubbles["Einlieferungsdatum"] >= min_date) &
+                      (df_bubbles["Einlieferungsdatum"] < max_date)]
 
 
-def get_marks(df):
+def get_marks(min_date, max_date):
     """Convert DateTimeIndex to a dict that maps epoch to str
 
     Parameters:
@@ -84,16 +84,13 @@ def get_marks(df):
              ...etc.
         }
     """
-    # extract unique month/year combinations as a PeriodIndex
-    months = df.index.to_period("M").unique().sort_values()
-
-    # convert PeriodIndex to epoch series and MM-YYYY string series
+    months = pd.date_range(min_date, max_date, freq='MS').to_period("M").unique().sort_values()
     epochs = months.to_timestamp().astype(np.int64) // 10**9
     strings = months.strftime("%m-%Y")
-    d = dict(zip(epochs, strings))
-
     return dict(zip(epochs, strings))
 
 
 if __name__ == "__main__":
-    create_part_to_whole()
+    r = get_marks(pd.Timestamp(DF_ROB["Einlieferungsdatum"].min()),
+                  pd.Timestamp(DF_ROB["Erstellt_am"].max()))
+    print(r)
