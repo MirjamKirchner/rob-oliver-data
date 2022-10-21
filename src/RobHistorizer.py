@@ -242,7 +242,7 @@ class RobHistorizer:
             else:
                 is_matching_old_entry = (df_old_rob_location_unknown["Einlieferungsdatum"] == new_entry["Einlieferungsdatum"]) & \
                                         (df_old_rob_location_unknown["Tierart"] == new_entry["Tierart"])
-                if any(is_matching_old_entry):
+                if any(is_matching_old_entry):  # TODO AND count seals on this Einlieferungsdatum in new and old has stayed the same
                     idx_old = df_old_rob_location_unknown[is_matching_old_entry].sort_index(ascending=False).index[0]
                     df_old_rob_location_unknown.drop([idx_old], inplace=True)
                     df_old_rob.loc[

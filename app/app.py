@@ -39,40 +39,65 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, "/static/seehun
 app.layout = html.Div([
     html.Img(src="/static/img/Seehundheader1.jpg"),
     html.Div([
-        html.Small(children=["Data are provided by ",
+        html.Small(children=["Daten werden bereitgestellt durch ",
                              html.A(
                                  href="https://www.seehundstation-friedrichskoog.de/",
                                  children="Seehundstation Friedrichskoog. ",
                                  style={"color": "#004d9e"}
                              ),
-                             "Last update on DATE OF THE LAST UPDATE"]
+                             "Zuletzt aktualisiert am DATE OF THE LAST UPDATE"]
                    )
-    ]),
-    html.P('Dash converts Python classes into HTML'),
-    html.Div(children="Baby seals man!"),
+    ], style={"background-color": "#e9e2d8"}),
+    html.Div(html.P("")),
     html.Div(
         [
-            dbc.Row(
+            dbc.Container(dbc.Card(
                 [
-                    dbc.Col(html.Div(
-                        dcc.Graph(id="fig-part-to-whole"),
-                        style={"width": "100%", "height": "800px"}),
-                        width=3),
-                    dbc.Col(html.Div("I am a test paragraph.")),
-                ]
+
+                        html.Div([
+                            html.Div(
+                                [
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(html.Div(
+                                                dcc.Graph(id="fig-part-to-whole"),
+                                                style={"width": "100%", "height": "400px"}),
+                                                width=3),
+                                            dbc.Col(html.Div([html.P(["Willkommen Robben-Freund!", html.Br(),
+                                                                      "Hier kannst du Informationen zu den Robbenfunden der Seehundstation in Friedrichskoog untersuchen."]),
+                                                              html.P(["Im Diagramm links siehst du den Anteil in Reha befindlichen, ausgewilderten und verstorbenen Robben "
+                                                                      "im Zeitraum VON BIS.", html.Br(),
+                                                                      "Unter diesem Text siehst du eine Karte, in der die ungefähren Fundorte der eingelieferten Robben "
+                                                                      "eingetragen sind.", html.Br(),
+                                                                      "Im letzten Bild kannst du dir ansehen, wann wie viele Robben in die Station eingeliefert worden sind."]),
+                                                             html.P(["Zusätzlich findest du am Ende dieser Seite einen Zeitstrahl, der anzeigt für welchen Zeitraum Informationen"
+                                                                     " in den Grafiken dargestellt werden. Wenn du ein bestimmtest Zeitfenster genauer betrachten möchtest,"
+                                                                     " musst du nur den linken und rechten Kreis verschieben, um den Start- bzw. den Endzeitpunkt "
+                                                                     "anzupassen.", html.Br(),
+                                                                     "Probier es doch mal aus :-) Viel Spaß!"])])),
+                                        ]
+                                    )
+                                ]
+                            ),
+                            html.Div(dbc.Card(dcc.Graph(id="fig-bubbles"))),
+                            html.Div(dcc.Graph(id="fig-time-series")),
+                            html.Div(dcc.RangeSlider(
+                                allowCross=False,
+                                id="date-slider",
+                                min=pd.Timestamp(
+                                    DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
+                                max=pd.Timestamp(
+                                    DF_ROB["Einlieferungsdatum"].max() + pd.Timedelta(days=14)).timestamp(),
+                                marks=get_marks(df_time_series.set_index("Admission date")), )
+                            )
+                        ])
+
+                ], color="#e9e2d8", style={"border-radius": "10px"})
             )
         ]
     ),
-    html.Div(dcc.Graph(id="fig-bubbles")),
-    html.Div(dcc.Graph(id="fig-time-series")),
-    html.Div(dcc.RangeSlider(
-        allowCross=False,
-        id="date-slider",
-        min=pd.Timestamp(DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
-        max=pd.Timestamp(DF_ROB["Einlieferungsdatum"].max() + pd.Timedelta(days=14)).timestamp(),
-        marks=get_marks(df_time_series.set_index("Admission date")),)
-    ),
-    #html.Div(id="out-date-slider")
+    html.Div(html.P(""))
+    # html.Div(id="out-date-slider")
 ])
 
 
@@ -113,7 +138,9 @@ def update_fig_part_to_whole(selected_range):
             ay=0,
             font_size=22,
             showarrow=False)],
-        margin=dict(l=20, r=20, t=20, b=20)
+        margin=dict(l=20, r=20, t=20, b=20),
+        paper_bgcolor="rgba(0, 0, 0, 0)",
+        plot_bgcolor="rgba(0, 0, 0, 0)"
     )
 
     return fig_part_to_whole
@@ -138,13 +165,15 @@ def update_fig_bubbles(selected_range):
                                     center={"lat": 54.43388, "lon": 9.57109})
     fig_bubbles.update_traces(
         marker=dict(
-            color="#061E47",
+            color="#FF7F3F",
             allowoverlap=True
         )
     )
     fig_bubbles.update_layout(
         mapbox_style="open-street-map",
-        margin={"r": 0, "t": 0, "l": 0, "b": 0}
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="rgba(0, 0, 0, 0)",
+        plot_bgcolor="rgba(0, 0, 0, 0)"
     )
     return fig_bubbles
 
@@ -159,7 +188,7 @@ def update_fig_time_series(selected_range):
         min_date = datetime.fromtimestamp(selected_range[0])
         max_date = datetime.fromtimestamp(selected_range[1])
         df_time_series_slider = create_time_series(max_date=max_date, min_date=min_date)
-    color_discrete_map = {"Seehund": "#5B89AE", "Kegelrobbe": "#CB8E66", "sonstige": "#D3D2C7"}
+    color_discrete_map = {"Seehund": "#086E7D", "Kegelrobbe": "#34BE82", "sonstige": "#F47340"}
     fig_time_series = px.line(df_time_series_slider,
                               x="Admission date",
                               y="Count",
@@ -172,8 +201,10 @@ def update_fig_time_series(selected_range):
             yanchor="bottom",
             y=1.02,
             xanchor="left",
-            x=1
-        )
+            x=0
+        ),
+        paper_bgcolor="rgba(0, 0, 0, 0)",
+        plot_bgcolor="rgba(0, 0, 0, 0)"
     )
     return fig_time_series
 
