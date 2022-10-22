@@ -28,7 +28,6 @@ def _load_engineered_rob():
 DF_ROB = _load_engineered_rob()
 
 
-# Part to whole
 def create_part_to_whole(max_date: datetime = pd.to_datetime("today"),
                          min_date: datetime = pd.to_datetime("1990-04-30")):
     df_time_slice = DF_ROB.loc[(DF_ROB["Einlieferungsdatum"] >= min_date) &
@@ -58,17 +57,16 @@ def create_time_series(max_date: datetime = pd.to_datetime("today"),
 
 def create_bubbles(max_date: datetime = pd.to_datetime("today"),
                    min_date: datetime = pd.to_datetime("1990-04-30")):
-    df_bubbles = DF_ROB[["Sys_id", "Einlieferungsdatum", "Long", "Lat"]]. \
+    df_bubbles = DF_ROB[["Sys_id", "Einlieferungsdatum", "Fundort", "Long", "Lat"]]
+    df_bubbles = df_bubbles[(df_bubbles["Einlieferungsdatum"] >= min_date) &
+                            (df_bubbles["Einlieferungsdatum"] < max_date)].drop(columns=["Einlieferungsdatum"])
+    df_bubbles = df_bubbles. \
         drop_duplicates(). \
-        groupby(["Long", "Lat", pd.Grouper(key="Einlieferungsdatum", axis=0, freq="W-MON")]). \
+        groupby(["Fundort", "Long", "Lat"]). \
         count(). \
         reset_index(). \
-        rename(columns={"Sys_id": "Anzahl"})
-    df_bubbles = pd.merge(df_bubbles, DF_ROB[["Long", "Lat", "Fundort"]].drop_duplicates(),
-                          how="left",
-                          on=["Long", "Lat"])
-    return df_bubbles[(df_bubbles["Einlieferungsdatum"] >= min_date) &
-                      (df_bubbles["Einlieferungsdatum"] < max_date)]
+        rename(columns={"Sys_id": "Anzahl"})  # Some animals have an unkown finding place. Therefore, the total count here is below the actual.
+    return df_bubbles
 
 
 def get_marks(min_date, max_date):
@@ -91,6 +89,9 @@ def get_marks(min_date, max_date):
 
 
 if __name__ == "__main__":
-    r = get_marks(pd.Timestamp(DF_ROB["Einlieferungsdatum"].min()),
-                  pd.Timestamp(DF_ROB["Erstellt_am"].max()))
-    print(r)
+    b = create_bubbles()
+    t = create_time_series()
+    print("Sanity checks")
+    print(DF_ROB["Sys_id"].unique().size)
+    print(b["Anzahl"].sum())
+    print(t["Anzahl"].sum())

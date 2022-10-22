@@ -2,35 +2,16 @@
 # visit http://127.0.0.1:8050/ in your web browser.
 
 from dash import Dash, html, dcc, Input, Output
-from plotly.subplots import make_subplots
-from flask import send_from_directory
 import plotly.express as px
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 import pandas as pd
-import numpy as np
 from datetime import datetime
 
 from create_app_assets import create_part_to_whole, create_time_series, create_bubbles, get_marks, DF_ROB
 import plotly.io as pio
 
 pio.templates.default = "simple_white"
-
-
-# Part to whole
-
-# fig.add_trace(go.Scatter(x=[1, 2], y=[1, 2], name="(1,1)"), row=1, col=1)
-# fig.add_trace(go.Scatter(x=[1, 2], y=[1, 2], name="(1,2)"), row=1, col=2)
-# fig.add_trace(go.Scatter(x=[1, 2], y=[1, 2], name="(2,1)"), row=2, col=1)
-# fig.add_trace(go.Scatter(x=[1, 2], y=[1, 2], name="(3,1)"), row=3, col=1)
-# fig.add_trace(go.Scatter(x=[1, 2], y=[1, 2], name="(5,1)"), row=5, col=1)
-# fig.add_trace(go.Scatter(x=[1, 2], y=[1, 2], name="(5,2)"), row=5, col=2)
-
-# fig.update_layout(
-#     margin=dict(l=20, r=20, t=20, b=20),
-#     paper_bgcolor="#869fb5"
-# )
-
 df_time_series = create_time_series()
 
 # App
@@ -56,64 +37,72 @@ app.layout = html.Div([
             dbc.Container(dbc.Card(
                 [
 
-                        html.Div([
-                            html.Div(
-                                [
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(html.Div(
-                                                dcc.Graph(id="fig-part-to-whole"),
-                                                style={"width": "100%", "height": "400px"}),
-                                                width=3),
-                                            dbc.Col(html.Div([html.P(["Willkommen Robben-Freund!", html.Br(),
-                                                                      "Hier kannst du Informationen zu den Robbenfunden der Seehundstation in Friedrichskoog untersuchen."]),
-                                                              html.P(["Im Diagramm links siehst du den Anteil der in Reha befindlichen, ausgewilderten und verstorbenen Robben "
-                                                                      "im Zeitraum ", html.A(id="val-date-range"), html.Br(),
-                                                                      "Unter diesem Text siehst du eine Karte, in der die ungefähren Fundorte der eingelieferten Robben "
-                                                                      "eingetragen sind.", html.Br(),
-                                                                      "Im letzten Bild kannst du dir ansehen, wann wie viele Robben in die Station eingeliefert worden sind."]),
-                                                             html.P(["Zusätzlich findest du am Ende dieser Seite einen Zeitstrahl, der anzeigt für welchen Zeitraum Informationen"
+                    html.Div([
+                        html.Div(
+                            [
+                                dbc.Row(
+                                    [
+                                        dbc.Col(html.Div(
+                                            dcc.Graph(id="fig-part-to-whole"),
+                                            style={"width": "100%", "height": "400px"}),
+                                            width=3),
+                                        dbc.Col(html.Div([html.P(["Willkommen Robben-Freund!", html.Br(),
+                                                                  "Hier kannst du Informationen zu den Robbenfunden der ",
+                                                                  html.A(
+                                                                      href="https://www.seehundstation-friedrichskoog.de/",
+                                                                      children="Seehundstation Friedrichskoog ",
+                                                                      style={"color": "#004d9e"}
+                                                                  ), "untersuchen."]),
+                                                          html.P(["Im Diagramm links siehst du den Anteil der",
+                                                                  html.A(children=" in Reha befindlichen",
+                                                                         style={"color": "#2B7A0B"}),
+                                                                  ", ", html.A(children="ausgewilderten",
+                                                                               style={"color": "#5BB318"}), " und ",
+                                                                  html.A(children="verstorbenen",
+                                                                         style={"color": "#7DCE13"}),
+                                                                  " Robben  im Zeitraum ",
+                                                                  html.A(id="val-date-range"), html.Br(),
+                                                                  "Unter diesem Text siehst du eine Karte, in der die ungefähren Fundorte der eingelieferten Robben "
+                                                                  "eingetragen sind.", html.Br(),
+                                                                  "Im letzten Bild kannst du dir ansehen, wann wie viele Robben in die Station eingeliefert worden sind."]),
+                                                          html.P([
+                                                                     "Zusätzlich findest du am Ende dieser Seite einen Zeitstrahl, der anzeigt für welchen Zeitraum Informationen"
                                                                      " in den Grafiken dargestellt werden. Wenn du ein bestimmtest Zeitfenster genauer betrachten möchtest,"
                                                                      " musst du nur den linken und rechten Kreis verschieben, um den Start- bzw. den Endzeitpunkt "
                                                                      "anzupassen.", html.Br(),
-                                                                     "Probier es doch mal aus 😄 Viel Spaß! ", html.A(href="https://www.mirjam-kirchner.com/", children="🐼💚"),])])),
-                                        ]
-                                    )
-                                ]
-                            ),
-                            html.Div(dbc.Card(dcc.Graph(id="fig-bubbles"))),
-                            html.Div(dcc.Graph(id="fig-time-series")),
-                            html.Div(dcc.RangeSlider(
-                                allowCross=False,
-                                id="date-slider",
-                                min=pd.Timestamp(
-                                    DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
-                                max=pd.Timestamp(
-                                    DF_ROB["Erstellt_am"].max() + pd.Timedelta(days=14)).timestamp(),
-                                marks=get_marks(pd.Timestamp(DF_ROB["Einlieferungsdatum"].min()),
-                                                pd.Timestamp(DF_ROB["Erstellt_am"].max())),  # TODO update so that updates are also considered as marks
-                                value=[pd.Timestamp(DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
-                                       pd.Timestamp(DF_ROB["Erstellt_am"].max() + pd.Timedelta(days=14)).timestamp()])
-                            )
-                        ])
+                                                                     "Probier es doch mal aus 😄 Viel Spaß! ",
+                                                                     html.A(href="https://www.mirjam-kirchner.com/",
+                                                                            children="🐼💚"), ]),
+                                                          html.P([html.A(children="Das kannst du tun:", style={"color": "#0d6efd"}), html.Br(),
+                                                                  dbc.Button("Robben helfen!", href="https://www.seehundstation-friedrichskoog.de/spenden/"),
+                                                                  " ",
+                                                                  dbc.Button("Source Code ansehen!", href="https://github.com/MirjamKirchner/rob-oliver")])])),
+                                    ]
+                                )
+                            ]
+                        ),
+                        html.Div(dcc.Graph(id="fig-bubbles")),
+                        html.Div(dcc.Graph(id="fig-time-series")),
+                        html.Div(dcc.RangeSlider(
+                            allowCross=False,
+                            id="date-slider",
+                            min=pd.Timestamp(
+                                DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
+                            max=pd.Timestamp(
+                                DF_ROB["Erstellt_am"].max() + pd.Timedelta(days=14)).timestamp(),
+                            marks=get_marks(pd.Timestamp(DF_ROB["Einlieferungsdatum"].min()),
+                                            pd.Timestamp(DF_ROB["Erstellt_am"].max())),
+                            value=[pd.Timestamp(DF_ROB["Einlieferungsdatum"].min() - pd.Timedelta(days=14)).timestamp(),
+                                   pd.Timestamp(DF_ROB["Erstellt_am"].max() + pd.Timedelta(days=14)).timestamp()])
+                        )
+                    ])
 
                 ], color="#e9e2d8", style={"border-radius": "10px"})
             )
         ]
     ),
     html.Div(html.P(""))
-    # html.Div(id="out-date-slider")
 ])
-
-
-# @app.callback(
-#     Output("out-date-slider", "children"),
-#     [Input("date-slider", "value")])
-# def update_output(value):
-#     if value is None:
-#         return 'You have selected "{}"'.format(value)
-#     else:
-#         return 'You have selected "{}"'.format((datetime.fromtimestamp(value[0]), datetime.fromtimestamp(value[1])))
 
 
 @app.callback(
@@ -127,7 +116,8 @@ def update_fig_part_to_whole(selected_range):
     fig_part_to_whole = go.Figure(data=[go.Pie(labels=ds_part_to_whole.index,
                                                values=ds_part_to_whole.values,
                                                hole=0.4,
-                                               marker_colors=["#1F4591", "#2B6AD0", "#68A4F1"])])
+                                               marker_colors=["#5BB318", "#7DCE13", "#2B7A0B"]
+                                               )])
     fig_part_to_whole.update_layout(
         showlegend=False,
         annotations=[dict(
@@ -156,23 +146,53 @@ def update_fig_bubbles(selected_range):
     max_date = datetime.fromtimestamp(selected_range[1])
     df_bubbles = create_bubbles(max_date=max_date, min_date=min_date)
 
-    fig_bubbles = px.scatter_mapbox(df_bubbles,
-                                    lat="Lat",
-                                    lon="Long",
-                                    size="Anzahl",
-                                    zoom=7,
-                                    center={"lat": 54.43388, "lon": 9.57109})
-    fig_bubbles.update_traces(
-        marker=dict(
+    fig_bubbles = go.Figure()
+    # finding places
+    fig_bubbles.add_trace(go.Scattermapbox(
+        lat=df_bubbles["Lat"],
+        lon=df_bubbles["Long"],
+        mode="markers",
+        marker=go.scattermapbox.Marker(
             color="#FF7F3F",
-            allowoverlap=True
-        )
-    )
+            size=df_bubbles["Anzahl"],
+            sizeref=df_bubbles["Anzahl"].max()/(17**2),
+            sizemin=3,
+            sizemode="area"
+        ),
+        text=(pd.Series(["Fundort"]*df_bubbles["Fundort"].size).str.cat(df_bubbles["Fundort"].astype(str), sep="=")).str.cat(pd.Series(["Anzahl"]*df_bubbles["Anzahl"].size).str.cat(df_bubbles["Anzahl"].astype(str), sep="="), sep="<br>"),
+        hoverinfo="text",
+        name="Fundort"
+    ))
+    # Seehundstation Friedrichskoog
+    fig_bubbles.add_trace(go.Scattermapbox(
+        lat=[54.00089266779337],
+        lon=[8.876683012541077],
+        mode="markers+text",
+        marker=go.scattermapbox.Marker(
+            color="#004d9e",
+            size=15
+        ),
+        text="Seehundstation Friedrichskoog",
+        hoverinfo="text",
+        name="Seehundstation"
+    ))
+    # Layout
     fig_bubbles.update_layout(
-        mapbox_style="open-street-map",
+        mapbox=dict(style="stamen-terrain", #"open-street-map", "carto-positron", "carto-darkmatter", "stamen-terrain", "stamen-toner" or "stamen-watercolor"
+                    zoom=6.5,
+                    center=dict(lat=54.43388, lon=9.57109)),
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor="rgba(0, 0, 0, 0)",
-        plot_bgcolor="rgba(0, 0, 0, 0)"
+        plot_bgcolor="rgba(0, 0, 0, 0)",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+            itemsizing="constant",
+           # itemwidth=100
+        )
     )
     return fig_bubbles
 
