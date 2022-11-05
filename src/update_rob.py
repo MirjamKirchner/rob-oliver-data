@@ -19,7 +19,7 @@ def _update_rob_file_system(path_to_raw: str,
                             path_to_rob: str,
                             path_to_rob_engineered: str,
                             path_to_finding_places: str,
-                            latest_update: datetime) -> (RobScraper, RobHistorizer, RobEngineer):
+                            latest_update: datetime) -> (RobScraper, RobHistorizer):
     """
     Updates the file in PATH_TO_ROB.
     :param path_to_raw: (str) Path to a local pdf-file containing information about rescued seal pups. If None,
@@ -39,13 +39,8 @@ def _update_rob_file_system(path_to_raw: str,
     # Historize data
     rob_historizer = RobHistorizer(rob_scraper)
     rob_historizer.historize_rob(save_copy=False)
-    # Engineer features
-    rob_engineer = RobEngineer(path_to_rob=path_to_rob,
-                               path_to_rob_engineered=path_to_rob_engineered,
-                               path_to_finding_places=path_to_finding_places,
-                               latest_update=latest_update)
-    rob_engineer.engineer_rob()
-    return rob_scraper, rob_historizer, rob_engineer
+
+    return rob_scraper, rob_historizer
 
 
 def update_rob_clearml(path_to_raw: str = None,
@@ -95,7 +90,6 @@ def update_rob_clearml(path_to_raw: str = None,
 
     # Add the local files
     dataset.add_files(path_to_rob)
-    dataset.add_files(path_to_rob_engineered)
     dataset.add_files(path_to_finding_places)
 
     # Finalize and upload the data
@@ -104,5 +98,20 @@ def update_rob_clearml(path_to_raw: str = None,
 
 
 if __name__ == "__main__":
-    #update_rob_clearml(path_to_raw=os.path.join(PATH_TO_DATA, "raw", "20220429_1.6HomepageHeuler.pdf"))
-    update_rob_clearml()
+    # update_rob_clearml(path_to_raw=os.path.join(PATH_TO_DATA, "raw", "20220429_1.6HomepageHeuler.pdf"))
+    #update_rob_clearml()
+    dataset = Dataset.create(
+        dataset_name="rob",
+        dataset_project=PROJECT_NAME,
+        parent_datasets=[Dataset.get(dataset_project=PROJECT_NAME, dataset_name=DATASET_NAME).id]
+    )
+    dataset_task = Task.get_task(task_id=dataset.id)
+
+    # Add the local files
+    dataset.add_files(PATH_TO_ROB)
+    dataset.add_files(PATH_TO_FINDING_PLACES)
+
+    # Finalize and upload the data
+    dataset.finalize(auto_upload=True)
+    dataset_task.flush(wait_for_uploads=True)  # Make sure we wait until everything is uploaded
+

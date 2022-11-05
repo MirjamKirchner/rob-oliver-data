@@ -3,7 +3,6 @@ import logging
 import pandas as pd
 import os
 import difflib
-import numpy as np
 
 from pandasgui.gui import PandasGui
 from PyQt5 import QtGui
@@ -92,7 +91,6 @@ class RobEngineer:
                                                            "Sys_aktualisiert_am"],
                                               date_parser=pd.to_datetime)
                                   [lambda x: x["Sys_aktualisiert_am"] <= latest_update])
-
         self.df_engineered_rob = pd.concat([self.df_engineered_rob, df_historized_rob], axis=0, ignore_index=True)
 
     def _geoparse_rob(self) -> None:
@@ -100,12 +98,10 @@ class RobEngineer:
         Parses finding places stored in self.df_engineered_rob to spatial coordinates
         :return: None
         """
-
         slice = self.df_engineered_rob["Sys_aktualisiert_am"] >= self.latest_update
         self.df_engineered_rob.insert(loc=self.df_engineered_rob.columns.get_loc("Fundort") + 1,
                                       column="Mapped Fundort",
                                       value=self.df_engineered_rob["Fundort"].mask(slice))
-
         indices = self.df_engineered_rob.loc[slice, "Fundort"].dropna().index
 
         df_finding_places = pd.read_csv(self.path_to_finding_places, dtype={"Long": "float64", "Lat": "float64"})
@@ -139,7 +135,7 @@ class RobEngineer:
         callers_local_vars = inspect.currentframe().f_back.f_locals.items()
 
         # Make a dictionary of the DataFrames from the position args and get their variable names using inspect
-        items = {"rob_engineered": self.df_engineered_rob}
+        items = {"new_rob": self.df_engineered_rob}
 
         dupes = [key for key in items.keys() if key in kwargs.keys()]
         if any(dupes):
@@ -181,3 +177,4 @@ if __name__ == "__main__":
 
     rob_engineer = RobEngineer(latest_update=pd.to_datetime("2022-08-07 21:23:39.380217"))
     rob_engineer._geoparse_rob()
+
