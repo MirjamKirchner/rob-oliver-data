@@ -97,7 +97,7 @@ class RobHistorizer:
             self.df_historized_rob.sort_values(
                 by=["Sys_aktualisiert_am", "Einlieferungsdatum"]
             ).to_csv(os.path.join(PATH_TO_DATA, "interim", "rob.csv"), index=False)
-
+            
     def _show_new_rob(self, df_new_rob: pd.DataFrame, settings={}, **kwargs) -> RobGui:
         """
         Some preprocessing steps require human checks and, if need be, correction. This task is facilitated by opening

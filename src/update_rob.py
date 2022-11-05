@@ -3,6 +3,7 @@ import pandas as pd
 
 from RobScraper import RobScraper
 from RobHistorizer import RobHistorizer
+from RobEngineer import RobEngineer
 from clearml import Task, Dataset
 from config import PATH_TO_DATA
 from datetime import datetime
