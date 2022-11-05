@@ -1,24 +1,23 @@
 # Run this app with `python app.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
 
-from dash import Dash, html, dcc, Input, Output
 import plotly.express as px
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 import pandas as pd
-from datetime import datetime
-
-from create_app_assets import create_part_to_whole, create_time_series, create_bubbles, get_marks, DF_ROB
 import plotly.io as pio
+from datetime import datetime
+from dash import Dash, html, dcc, Input, Output
+from create_app_assets import create_part_to_whole, create_time_series, create_bubbles, get_marks, DF_ROB
 
+# Theme for plotly plots
 pio.templates.default = "simple_white"
-df_time_series = create_time_series()
 
 # App
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, "/static/seehundstation_friedrichskoog.css"])
 
 app.layout = html.Div([
-    html.Img(src="/static/img/Seehundheader1.jpg"),
+    html.Img(src="/static/img/Seehundheader1.jpg", style={"width": "100%"}),
     html.Div([
         html.Small(children=["Daten werden bereitgestellt durch die ",
                              html.A(
@@ -66,17 +65,20 @@ app.layout = html.Div([
                                                                   "eingetragen sind.", html.Br(),
                                                                   "Im letzten Bild kannst du dir ansehen, wann wie viele Robben in die Station eingeliefert worden sind."]),
                                                           html.P([
-                                                                     "Zusätzlich findest du am Ende dieser Seite einen Zeitstrahl, der anzeigt für welchen Zeitraum Informationen"
-                                                                     " in den Grafiken dargestellt werden. Wenn du ein bestimmtest Zeitfenster genauer betrachten möchtest,"
-                                                                     " musst du nur den linken und rechten Kreis verschieben, um den Start- bzw. den Endzeitpunkt "
-                                                                     "anzupassen.", html.Br(),
-                                                                     "Probier es doch mal aus 😄 Viel Spaß! ",
-                                                                     html.A(href="https://www.mirjam-kirchner.com/",
-                                                                            children="🐼💚"), ]),
-                                                          html.P([html.A(children="Das kannst du tun:", style={"color": "#0d6efd"}), html.Br(),
-                                                                  dbc.Button("Robben helfen!", href="https://www.seehundstation-friedrichskoog.de/spenden/"),
+                                                              "Zusätzlich findest du am Ende dieser Seite einen Zeitstrahl, der anzeigt für welchen Zeitraum Informationen"
+                                                              " in den Grafiken dargestellt werden. Wenn du ein bestimmtest Zeitfenster genauer betrachten möchtest,"
+                                                              " musst du nur den linken und rechten Kreis verschieben, um den Start- bzw. den Endzeitpunkt "
+                                                              "anzupassen.", html.Br(),
+                                                              "Probier es doch mal aus 😄 Viel Spaß! ",
+                                                              html.A(href="https://www.mirjam-kirchner.com/",
+                                                                     children="🐼💚"), ]),
+                                                          html.P([html.A(children="Das kannst du tun:",
+                                                                         style={"color": "#0d6efd"}), html.Br(),
+                                                                  dbc.Button("Robben helfen!",
+                                                                             href="https://www.seehundstation-friedrichskoog.de/spenden/"),
                                                                   " ",
-                                                                  dbc.Button("Source Code ansehen!", href="https://github.com/MirjamKirchner/rob-oliver")])])),
+                                                                  dbc.Button("Source Code ansehen!",
+                                                                             href="https://github.com/MirjamKirchner/rob-oliver")])])),
                                     ]
                                 )
                             ]
@@ -109,6 +111,12 @@ app.layout = html.Div([
     Output("fig-part-to-whole", "figure"),
     Input("date-slider", "value"))
 def update_fig_part_to_whole(selected_range):
+    """
+    Updates the donut chart displaying the fraction of animals in rehabilitation, released, and dead based on the
+    selected date range.
+    :param selected_range: (Tuple(int, int)) a pair of epochs
+    :return: (plotly.graph_objects.Figure) a donut chart
+    """
     min_date = datetime.fromtimestamp(selected_range[0])
     max_date = datetime.fromtimestamp(selected_range[1])
     ds_part_to_whole = create_part_to_whole(max_date=max_date, min_date=min_date)
@@ -121,7 +129,8 @@ def update_fig_part_to_whole(selected_range):
     fig_part_to_whole.update_layout(
         showlegend=False,
         annotations=[dict(
-            text="keine Daten<br>verfügbar" if ds_part_to_whole.sum() == 0 else str(ds_part_to_whole.sum()) + "<br>total",
+            text="keine Daten<br>verfügbar" if ds_part_to_whole.sum() == 0 else str(
+                ds_part_to_whole.sum()) + "<br>total",
             x=0.5,
             y=0.5,
             xref="paper",
@@ -142,6 +151,12 @@ def update_fig_part_to_whole(selected_range):
     Output("fig-bubbles", "figure"),
     Input("date-slider", "value"))
 def update_fig_bubbles(selected_range):
+    """
+    Updates the bubble chart displaying the count of seals at different finding places and the location of the
+    Seehundstation Friedrichskoog based on the selected date range.
+    :param selected_range: (Tuple(int, int)) a pair of epochs
+    :return: (plotly.graph_objects.Figure) a bubble chart
+    """
     min_date = datetime.fromtimestamp(selected_range[0])
     max_date = datetime.fromtimestamp(selected_range[1])
     df_bubbles = create_bubbles(max_date=max_date, min_date=min_date)
@@ -155,11 +170,14 @@ def update_fig_bubbles(selected_range):
         marker=go.scattermapbox.Marker(
             color="#FF7F3F",
             size=df_bubbles["Anzahl"],
-            sizeref=df_bubbles["Anzahl"].max()/(17**2),
+            sizeref=df_bubbles["Anzahl"].max() / (17 ** 2),
             sizemin=3,
             sizemode="area"
         ),
-        text=(pd.Series(["Fundort"]*df_bubbles["Fundort"].size).str.cat(df_bubbles["Fundort"].astype(str), sep="=")).str.cat(pd.Series(["Anzahl"]*df_bubbles["Anzahl"].size).str.cat(df_bubbles["Anzahl"].astype(str), sep="="), sep="<br>"),
+        text=(pd.Series(["Fundort"] * df_bubbles["Fundort"].size).str.cat(df_bubbles["Fundort"].astype(str),
+                                                                          sep="=")).str.cat(
+            pd.Series(["Anzahl"] * df_bubbles["Anzahl"].size).str.cat(df_bubbles["Anzahl"].astype(str), sep="="),
+            sep="<br>"),
         hoverinfo="text",
         name="Fundort"
     ))
@@ -178,7 +196,7 @@ def update_fig_bubbles(selected_range):
     ))
     # Layout
     fig_bubbles.update_layout(
-        mapbox=dict(style="stamen-terrain", #"open-street-map", "carto-positron", "carto-darkmatter", "stamen-terrain", "stamen-toner" or "stamen-watercolor"
+        mapbox=dict(style="stamen-terrain",  # "open-street-map", "carto-positron", "carto-darkmatter", "stamen-terrain", "stamen-toner" or "stamen-watercolor"
                     zoom=6.5,
                     center=dict(lat=54.43388, lon=9.57109)),
         margin=dict(l=0, r=0, t=0, b=0),
@@ -191,7 +209,6 @@ def update_fig_bubbles(selected_range):
             xanchor="left",
             x=0,
             itemsizing="constant",
-           # itemwidth=100
         )
     )
     return fig_bubbles
@@ -201,6 +218,12 @@ def update_fig_bubbles(selected_range):
     Output("fig-time-series", "figure"),
     Input("date-slider", "value"))
 def update_fig_time_series(selected_range):
+    """
+    Updates the time-series chart displaying the count of animals admitted to the Seehundstation Friedrichskoog based on
+    the selected date range.
+    :param selected_range: (Tuple(int, int)) a pair of epochs
+    :return: (plotly.graph_objects.Figure) a time-series chart
+    """
     min_date = datetime.fromtimestamp(selected_range[0])
     max_date = datetime.fromtimestamp(selected_range[1])
     df_time_series_slider = create_time_series(max_date=max_date, min_date=min_date)
@@ -229,6 +252,11 @@ def update_fig_time_series(selected_range):
     Output("val-date-range", "children"),
     Input("date-slider", "value"))
 def update_date_range(selected_range):
+    """
+    Returns the selected date range as string to be displayed within the written explanations of the dash board.
+    :param selected_range: (Tuple(int, int)) a pair of epochs
+    :return: (string) the selected date range
+    """
     min_date = datetime.fromtimestamp(selected_range[0]).strftime("%d.%m.%Y")
     max_date = datetime.fromtimestamp(selected_range[1]).strftime("%d.%m.%Y")
     return "{} - {}.".format(min_date, max_date)
