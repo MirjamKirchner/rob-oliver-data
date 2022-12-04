@@ -43,8 +43,7 @@ def save_rob(url):
     s3_path_changelog = "data/changelog"
     # Get raw data
     response = requests.get(url)
-    pdf_obj = io.BytesIO(response.content)
-    pdf_file_reader = PdfFileReader(pdf_obj)
+    pdf_file_reader = PdfFileReader(io.BytesIO(response.content))
     # Create file name and -path based on modification date of raw data
     modification_date = re.findall(r"\d+", pdf_file_reader.documentInfo["/ModDate"])[0][
         :8
@@ -58,9 +57,11 @@ def save_rob(url):
             # The object does not exist.
             try:
                 # Uploads the file to s3
-                s3.upload_fileobj(pdf_obj, s3_bucket, file_path_data)
+                s3.upload_fileobj(
+                    io.BytesIO(response.content), s3_bucket, file_path_data
+                )
                 s3.put_object(
-                    Bucket=s3_bucket, Key=f"{s3_path_changelog}/{file_name[:-4]}.log"
+                    Bucket=s3_bucket, Key=f"{s3_path_changelog}/{file_name[:-3]}log"
                 )
                 print(f"File downloaded from {url} and uploaded to {file_path_data}")
             except:
