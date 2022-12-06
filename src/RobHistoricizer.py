@@ -7,6 +7,7 @@ import tabula
 import difflib
 import numpy as np
 import inspect
+import sys
 from copy import copy
 from abc import ABC, abstractmethod
 from typing import List, Tuple
@@ -18,6 +19,11 @@ from PyQt5 import QtGui
 from IPython.core.magic import register_line_magic
 from operator import itemgetter
 from hashlib import sha256
+from clearml import Task, Dataset
+
+PROJECT_NAME = "rob-oliver"
+DATASET_NAME = "rob"
+PATH_TO_CLEARML_DATASET = "../data/clearml_dataset"
 
 
 class RobGui(PandasGui):
@@ -50,7 +56,6 @@ class RobGui(PandasGui):
                     "suggested_long": "Long",
                 }
             )
-            .sort_values(by="Name")
         )
         self.store.add_dataframe(df_new_finding_places, "df_new_finding_places")
 
@@ -65,7 +70,6 @@ class RobGui(PandasGui):
                     "suggested_long": "Long",
                 }
             )
-            .sort_values(by=["Erstellt_am", "Einlieferungsdatum"])
         )
         self.store.add_dataframe(df_rob_manually_corrected, "df_rob_manually_corrected")
 
@@ -119,6 +123,14 @@ class RobHistoricizer(ABC):
         )
         self.df_rob_historicized = self._read_csv(
             path_join.join([path_to_deployment_data, "rob.csv"])
+        ).astype(
+            {
+                "Long": "float64",
+                "Lat": "float64",
+                "Einlieferungsdatum": "datetime64[ns]",
+                "Erstellt_am": "datetime64[ns]",
+                "Sys_aktualisiert_am": "datetime64[ns]",
+            }
         )
         self.changelogs = self._get_changelogs()
         self.rob_raw = [self._get_rob_raw(changelog) for changelog in self.changelogs]
@@ -306,6 +318,7 @@ class RobHistoricizer(ABC):
         -------
         An instance of class `PandasGui`.
         """
+        # TODO refactor so that only unique location mappings are shown
         rob_gui = RobGui(
             df_rob_cleaned=df_rob_cleaned.sort_values(
                 by=["Erstellt_am", "Einlieferungsdatum"]
@@ -363,7 +376,7 @@ class RobHistoricizer(ABC):
         df_rob_new = self.df_rob_cleaned.copy()
         df_rob_old = self.df_rob_historicized.copy()
 
-        # Create system-id and system-hash values
+        # Create system-id and system-hash value in `df_rob_new`
         # TODO describe what you do to compute the sys-id
         df_rob_new["Sys_id"] = self._compute_hash(
             df_rob_new.assign(
@@ -376,12 +389,29 @@ class RobHistoricizer(ABC):
         )
         df_rob_new["Sys_hash"] = self._compute_hash(df_rob_new[["Sys_id", "Aktuell"]])
 
-        raise NotImplementedError
+        # For each `Sys_hash`, keep only the entry with the earliest date in `Erstellt_am` in `df_rob_new`
+        df_rob_new = (
+            df_rob_new.sort_values(["Sys_hash", "Erstellt_am"])
+            .groupby("Sys_hash")
+            .first()
+            .reset_index()
+        )
+
+        # Find entries that already exist in `df_rob_old` and that can be ignored in `df_rob_new`
+        entry_exists = df_rob_new["Sys_hash"].isin(df_rob_old["Sys_hash"])
+        if entry_exists.all():  # Abort historcization procedure if nothing has changed
+            print(
+                "No changes in self.rob_raw with respect to self.df_rob_historicized."
+            )
+            sys.exit(0)
+
+        # Return entries that do not exist in `df_rob_old`
+        return df_rob_new[~entry_exists].assign(Sys_aktualisiert_am=datetime.now())
 
     def _clean_missing_location(self):
         raise NotImplementedError
 
-    def update_rob(self) -> pd.DataFrame:
+    def update_rob(self) -> None:
         """
         Updates  `self._df_rob_updated`. TODO refine this.
 
@@ -409,54 +439,130 @@ class RobHistoricizer(ABC):
             df_rob_raw.drop(columns=["Fundort"])
         )
 
-        self.df_rob_cleaned, self.df_new_finding_places = itemgetter(
+        df_rob_cleaned, df_new_finding_places = itemgetter(
             "df_rob_manually_corrected", "df_new_finding_places"
         )(self._show_rob_cleaned(df_rob_cleaned).get_dataframes())
 
         # Historicize the information in `self.df_rob_cleaned`
-        self.df_new_rob_historicized = self.historicize_rob()
+        self.df_rob_cleaned = df_rob_cleaned.astype(
+            {
+                "Long": "float64",
+                "Lat": "float64",
+                "Einlieferungsdatum": "datetime64[ns]",
+            }
+        ).assign(Erstellt_am=pd.to_datetime(df_rob_cleaned["Erstellt_am"], utc=True))
+        df_new_rob_historicized = self.historicize_rob()
 
-        # Save updates in `df_new_finding_places` and `df_new_rob_historicized` to storage location and version data
-        # using clearml (https://clear.ml/)
-        # TODO do not forget to join df_new_finding_places and df_finding_places to get union and save to S3
+        # Save `df_new_finding_places` and `df_new_finding_places`
+        self.df_new_finding_places = (
+            pd.concat(
+                [self.df_finding_places, df_new_finding_places], ignore_index=True
+            )
+            .drop_duplicates()
+            .sort_values(by="Name")[["Name", "Lat", "Long"]]
+        )
+        self.df_new_rob_historicized = pd.concat(
+            [self.df_rob_historicized, df_new_rob_historicized], ignore_index=True
+        ).sort_values(by=["Einlieferungsdatum", "Tierart", "Fundort"])[
+            [
+                "Sys_id",
+                "Fundort",
+                "Lat",
+                "Long",
+                "Einlieferungsdatum",
+                "Tierart",
+                "Aktuell",
+                "Erstellt_am",
+                "Sys_aktualisiert_am",
+                "Sys_hash",
+            ]
+        ]
+
+        # Write `self.df_new_finding_places` and `self.df_new_rob_historicized` to storage
+        # S3
+        self._write_csv(
+            self.df_new_finding_places,
+            self.path_join.join(
+                [self.path_to_interim_data, "catalogued_finding_places.csv"]
+            ),
+        )
+        self._write_csv(
+            self.df_new_rob_historicized,
+            self.path_join.join([self.path_to_deployment_data, "rob.csv"]),
+        )
+        # local (for clearml versioning)
+        self.df_new_finding_places.to_csv(
+            os.path.join(PATH_TO_CLEARML_DATASET, "catalogued_finding_places.csv"),
+            index=False,
+        )
+        self.df_new_rob_historicized.to_csv(
+            os.path.join(PATH_TO_CLEARML_DATASET, "rob.csv"), index=False
+        )
 
         # Update changelogs
+        for changelog in self.changelogs:
+            self._delete_changelog(changelog)
 
-        return None
+        # Version `df_new_finding_places` and `df_new_rob_historicized` in a clearml (https://clear.ml/) dataset
+        self._add_to_clearml_dataset()
 
-    # @abstractmethod
-    # def write_csv(self, df: pd.DataFrame, path_to_csv: str) -> None:
-    #     """
-    #     Writes the given `pandas DataFrame`, `df`, as a comma-separated-values (csv) file into the location  specified
-    #     in `path_to_csv`. If the file does not exist, yet, it is created. Otherwise, it is overwritten.
-    #
-    #     Parameters
-    #     ----------
-    #     df
-    #         A `pandas DataFrame`.
-    #
-    #     path_to_csv
-    #         A path to a csv file.
-    #
-    #     Returns
-    #     -------
-    #     None
-    #     """
-    #     raise NotImplementedError
+    @staticmethod
+    @abstractmethod
+    def _write_csv(df: pd.DataFrame, path_to_csv: str) -> None:
+        """
+        Writes the given `pandas DataFrame`, `df`, as a comma-separated-values (csv) file into the location specified
+        in `path_to_csv`. If the file does not exist, yet, it is created. Otherwise, it is overwritten.
+
+        Parameters
+        ----------
+        df
+            A `pandas DataFrame`.
+
+        path_to_csv
+            A path to a csv file.
+
+        Returns
+        -------
+        None
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def _add_to_clearml_dataset() -> None:
+        """
+        TODO document this
+        Parameters
+        ----------
+        paths_to_source
+
+        Returns
+        -------
+        None
+        """
+        dataset = Dataset.create(
+            dataset_name=DATASET_NAME,
+            dataset_project=PROJECT_NAME,
+            parent_datasets=[
+                Dataset.get(dataset_project=PROJECT_NAME, dataset_name=DATASET_NAME).id
+            ],
+        )
+
+        # Sync local folder
+        dataset.sync_folder(local_path=os.path.join(PATH_TO_CLEARML_DATASET))
+
+        # Finalize and upload the data
+        dataset.finalize(auto_upload=True)
 
 
 class RobHistoricizerAWS(RobHistoricizer):
-    def __init__(self, local=False):
+    def __init__(self):
         """
         TODO document this
         Parameters
         ----------
         local  TODO what was this used for?
         """
-        aws_access_key_id = None
-        aws_secret_access_key = None
-        if local:
-            aws_access_key_id, aws_secret_access_key = self._get_aws_login()
+        aws_access_key_id, aws_secret_access_key = self._get_aws_login()
         self.s3_client = boto3.client(
             "s3",
             aws_access_key_id=aws_access_key_id,
@@ -515,11 +621,18 @@ class RobHistoricizerAWS(RobHistoricizer):
             print(error)
             raise
         except:
-            print("An unexpected exception has occured.")
+            print("An unexpected exception has occurred.")
             raise
+
+    def _write_csv(self, df: pd.DataFrame, path_to_csv: str) -> None:
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False)
+        self.s3_client.put_object(
+            Body=csv_buffer.getvalue(), Bucket=self.s3_bucket, Key=path_to_csv
+        )
 
 
 if __name__ == "__main__":
-    rob_historicizer_aws = RobHistoricizerAWS(local=True)
-    rob_raw = rob_historicizer_aws.update_rob()
-    print(":-D")
+    rob_historicizer_aws = RobHistoricizerAWS()
+    rob_historicizer_aws.update_rob()
+    # print(":-D")
