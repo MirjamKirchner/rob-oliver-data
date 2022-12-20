@@ -272,6 +272,16 @@ class RobHistoricizer(ABC):
             )[0]
             df = pd.concat([df, df_page_2pp]).reset_index(drop=True)
         df["Erstellt_am"] = creation_date
+
+        # Coerce columns with date values to datetime
+        df = df.assign(
+            Erstellt_am=pd.to_datetime(
+                df["Erstellt_am"], format="%Y-%m-%d %H:%M:%S%z", utc=True
+            ),
+            Einlieferungsdatum=pd.to_datetime(
+                df["Einlieferungsdatum"], format="%d.%m.%Y"
+            ),
+        )
         return df
 
     def clean_location_name(self, finding_place: str) -> Dict:
@@ -304,8 +314,8 @@ class RobHistoricizer(ABC):
         return {
             "raw_finding_place": finding_place,
             "suggested_finding_place": suggested_finding_place,
-            "suggested_long": long,
-            "suggested_lat": lat,
+            "suggested_long": float(long),
+            "suggested_lat": float(lat),
         }
 
     @staticmethod
@@ -321,7 +331,7 @@ class RobHistoricizer(ABC):
         # TODO refactor so that only unique location mappings are shown
         rob_gui = RobGui(
             df_rob_cleaned=df_rob_cleaned.sort_values(
-                by=["Erstellt_am", "Einlieferungsdatum"]
+                by=["Erstellt_am", "Einlieferungsdatum"], ascending=False
             )
         )
         rob_gui.caller_stack = inspect.currentframe().f_back
@@ -367,25 +377,36 @@ class RobHistoricizer(ABC):
 
     def historicize_rob(self) -> pd.DataFrame:
         """
-        TODO document this
+        Compares entries in `pandas Dataframes` `self.df_rob_cleaned` and `self.df_rob_historicized` and only returns
+        values  of `self.df_rob_cleaned` that do not already exist in `self.df_rob_historicized`.
 
         Returns
         -------
-
+        A `pandas Dataframe` that holds novel, cleaned input data about rescued seal pups.
         """
         df_rob_new = self.df_rob_cleaned.copy()
         df_rob_old = self.df_rob_historicized.copy()
 
-        # Create system-id and system-hash value in `df_rob_new`
-        # TODO describe what you do to compute the sys-id
+        # Create system-id and system-hash value in `df_rob_new`:
+        # Entries are identified by their values in `Fundort` (finding place), `Einlieferungsdatum` (admission date),
+        # and `Tierart` (breed). Since there may exist multiple animals of the same finding place, admission date and
+        # breed, the count of an animal within each group by `Erstellt_am` (creation date) is additionally used for
+        # idenfification.
         df_rob_new["Sys_id"] = self._compute_hash(
             df_rob_new.assign(
-                Order=(
+                Count=(
                     df_rob_new.groupby(
-                        ["Fundort", "Einlieferungsdatum", "Tierart", "Erstellt_am"]
+                        [
+                            "Fundort",
+                            "Einlieferungsdatum",
+                            "Tierart",
+                            "Erstellt_am",
+                        ]  # Group
                     ).cumcount()
                 )
-            )[["Order", "Fundort", "Einlieferungsdatum", "Tierart"]]
+            )[
+                ["Count", "Fundort", "Einlieferungsdatum", "Tierart"]
+            ]  # Unique identifier
         )
         df_rob_new["Sys_hash"] = self._compute_hash(df_rob_new[["Sys_id", "Aktuell"]])
 
@@ -413,11 +434,15 @@ class RobHistoricizer(ABC):
 
     def update_rob(self) -> None:
         """
-        Updates  `self._df_rob_updated`. TODO refine this.
+        Updates  `self.df_new_rob_historicized`. That is,
+        1. Reads the raw PDF into a `pandas Dataframe`
+        2. Corrects spelling mistakes in the names of finding places in the raw data and adds geo-coordinates
+        3. Updates the catalogued finding places
+        4. Historicizes the cleaned data and saves it
 
         Returns
         -------
-        A `pandas DataFrame`
+        None
         """
         # Read raw data from ByteIO object into pandas DataFrame
         df_rob_raw = pd.concat(
@@ -439,21 +464,14 @@ class RobHistoricizer(ABC):
             df_rob_raw.drop(columns=["Fundort"])
         )
 
-        df_rob_cleaned, df_new_finding_places = itemgetter(
+        self.df_rob_cleaned, df_new_finding_places = itemgetter(
             "df_rob_manually_corrected", "df_new_finding_places"
         )(self._show_rob_cleaned(df_rob_cleaned).get_dataframes())
 
         # Historicize the information in `self.df_rob_cleaned`
-        self.df_rob_cleaned = df_rob_cleaned.astype(
-            {
-                "Long": "float64",
-                "Lat": "float64",
-                "Einlieferungsdatum": "datetime64[ns]",
-            }
-        ).assign(Erstellt_am=pd.to_datetime(df_rob_cleaned["Erstellt_am"], utc=True))
         df_new_rob_historicized = self.historicize_rob()
 
-        # Save `df_new_finding_places` and `df_new_finding_places`
+        # Save `df_new_finding_places` and `df_new_rob_historicized`
         self.df_new_finding_places = (
             pd.concat(
                 [self.df_finding_places, df_new_finding_places], ignore_index=True
@@ -495,7 +513,7 @@ class RobHistoricizer(ABC):
             os.path.join(PATH_TO_CLEARML_DATASET, "catalogued_finding_places.csv"),
             index=False,
         )
-        self.df_new_rob_historicized.to_csv(
+        self.df_new_rob_historicized.to_csv(  # TODO should this really happen generally? Or does LocalRob need its own saving-function
             os.path.join(PATH_TO_CLEARML_DATASET, "rob.csv"), index=False
         )
 
@@ -530,15 +548,15 @@ class RobHistoricizer(ABC):
     @staticmethod
     def _add_to_clearml_dataset() -> None:
         """
-        TODO document this
-        Parameters
-        ----------
-        paths_to_source
+        Adds the dataset historicized in `self.update_rob` to a clearml dataset
+        (https://clear.ml/docs/latest/docs/references/sdk/dataset/). Clearml datasets are tracked by version, i.e., we
+        can restore previous versions of the dataset.
 
         Returns
         -------
         None
         """
+
         dataset = Dataset.create(
             dataset_name=DATASET_NAME,
             dataset_project=PROJECT_NAME,
@@ -557,18 +575,21 @@ class RobHistoricizer(ABC):
 class RobHistoricizerAWS(RobHistoricizer):
     def __init__(self):
         """
-        TODO document this
-        Parameters
-        ----------
-        local  TODO what was this used for?
+        Initializes an instance of class `RobHistoricizerAWS`. That is, sets up all pre-requisites to access and write
+        to the S3-bucket (https://s3.console.aws.amazon.com/s3/buckets/rob-oliver) and historicize data about rescued
+        seal pups of the Seehundstation Friedrichskoog.
         """
+        # AWS credentials
         aws_access_key_id, aws_secret_access_key = self._get_aws_login()
+        # AWS client
         self.s3_client = boto3.client(
             "s3",
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
         )
+        # S3 bucket
         self.s3_bucket = "rob-oliver"
+        # S3 folder paths and path join
         super().__init__(
             path_to_raw_data="data/raw",
             path_to_changelogs="data/changelog",
@@ -632,7 +653,82 @@ class RobHistoricizerAWS(RobHistoricizer):
         )
 
 
+class RobHistoricizerLocal(RobHistoricizer):
+    def __init__(self):
+        """
+        Initializes an instance of class `RobHistoricizerLocal`. This class may be used to test the functionality of
+        the parent class `RobHistoricizer` locally.
+        """
+        # Local paths to data
+        path_to_raw_data = (os.path.join("..", "data", "local", "raw"),)
+        path_to_changelogs = (os.path.join("..", "data", "local", "changelog"),)
+        path_to_interim_data = (os.path.join("..", "data", "local", "interim"),)
+        path_to_deployment_data = (os.path.join("..", "data", "local", "deployment"),)
+
+        # Create local paths if they don't exist, yet
+        local_paths = [
+            path_to_raw_data,
+            path_to_changelogs,
+            path_to_interim_data,
+            path_to_deployment_data,
+        ]
+        for path in local_paths:
+            if not os.path.exists(path):
+                os.makedirs(path)
+                print(f"The directory {path} was created!")
+
+        # Call parent init
+        super().__init__(
+            path_to_raw_data=path_to_raw_data,
+            path_to_changelogs=path_to_changelogs,
+            path_to_interim_data=path_to_interim_data,
+            path_to_deployment_data=path_to_deployment_data,
+            path_join=os.path.sep,
+        )
+
+        # Download data from S3 bucket (https://s3.console.aws.amazon.com/s3/buckets/rob-oliver)
+        # TODO implement this
+
+    def _get_changelogs(self) -> List[str]:
+        pass
+
+    def _delete_changelog(self, changelog_name: str) -> None:
+        pass
+
+    def _get_rob_raw(self, changelog_name: str) -> io.BytesIO:
+        pass
+
+    def _read_csv(self, path_to_csv: str) -> pd.DataFrame:
+        pass
+
+    def _clean_missing_location(self):
+        pass
+
+    @staticmethod
+    def _write_csv(df: pd.DataFrame, path_to_csv: str) -> None:
+        pass
+
+
 if __name__ == "__main__":
     rob_historicizer_aws = RobHistoricizerAWS()
     rob_historicizer_aws.update_rob()
-    # print(":-D")
+    # pdf_files = rob_historicizer_aws.s3_client.list_objects_v2(
+    #     Bucket=rob_historicizer_aws.s3_bucket, Prefix=rob_historicizer_aws.path_to_raw_data
+    # )["Contents"]
+    # changelogs = [
+    #     os.path.basename(pdf_file["Key"])[:-3]+"log"
+    #     for pdf_file in pdf_files
+    #     if os.path.basename(pdf_file["Key"]) != ""
+    # ]
+    # for changelog in changelogs:
+    #     rob_historicizer_aws.s3_client.put_object(
+    #         Bucket=rob_historicizer_aws.s3_bucket, Key=f"{rob_historicizer_aws.path_to_changelogs}/{changelog}"
+    #     )
+    # pdf_rob_raw_20220429 = rob_historicizer_aws._get_rob_raw("20220429_1.6HomepageHeuler.log")
+    # df_rob_raw_20220429 = rob_historicizer_aws.read_rob_raw(pdf_rob_raw_20220429)
+    # df_rob_raw_20220429_dtypes = df_rob_raw_20220429.astype(
+    #         {
+    #             "Einlieferungsdatum": "datetime64[ns]",
+    #         }
+    #     ).assign(Erstellt_am=pd.to_datetime(df_rob_raw_20220429["Erstellt_am"], utc=True))
+    print(":-D")
