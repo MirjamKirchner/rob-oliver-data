@@ -8,6 +8,7 @@ import difflib
 import numpy as np
 import inspect
 import sys
+import glob
 from copy import copy
 from abc import ABC, abstractmethod
 from typing import List, Tuple
@@ -19,7 +20,7 @@ from PyQt5 import QtGui
 from IPython.core.magic import register_line_magic
 from operator import itemgetter
 from hashlib import sha256
-from clearml import Task, Dataset
+from clearml import Dataset
 
 PROJECT_NAME = "rob-oliver"
 DATASET_NAME = "rob"
@@ -660,10 +661,10 @@ class RobHistoricizerLocal(RobHistoricizer):
         the parent class `RobHistoricizer` locally.
         """
         # Local paths to data
-        path_to_raw_data = (os.path.join("..", "data", "local", "raw"),)
-        path_to_changelogs = (os.path.join("..", "data", "local", "changelog"),)
-        path_to_interim_data = (os.path.join("..", "data", "local", "interim"),)
-        path_to_deployment_data = (os.path.join("..", "data", "local", "deployment"),)
+        path_to_raw_data = os.path.join("..", "data", "local", "raw")
+        path_to_changelogs = os.path.join("..", "data", "local", "changelog")
+        path_to_interim_data = os.path.join("..", "data", "local", "interim")
+        path_to_deployment_data = os.path.join("..", "data", "local", "deployment")
 
         # Create local paths if they don't exist, yet
         local_paths = [
@@ -677,6 +678,40 @@ class RobHistoricizerLocal(RobHistoricizer):
                 os.makedirs(path)
                 print(f"The directory {path} was created!")
 
+        # Download data from S3 bucket (https://s3.console.aws.amazon.com/s3/buckets/rob-oliver)
+        # Get s3 client
+        config = botocore.client.Config(signature_version=botocore.UNSIGNED)
+        s3 = boto3.client("s3", config=config)
+        # List all files in s3 bucket
+        s3_bucket = "rob-oliver"
+        s3_bucket_list = s3.list_objects(Bucket=s3_bucket)["Contents"]
+        s3_file_keys = [
+            s3_obj_meta["Key"]
+            for s3_obj_meta in s3_bucket_list
+            if "." in s3_obj_meta["Key"]
+        ]
+        # Retrieve files and save to local file system
+        for s3_key in s3_file_keys:
+            # Retrieve file
+            s3_obj = s3.get_object(Bucket=s3_bucket, Key=s3_key)
+            # Set local path based on `s3_key`
+            if "raw" in s3_key:
+                path = path_to_raw_data
+            elif "changelog" in s3_key:
+                path = path_to_changelogs
+            elif "interim" in s3_key:
+                path = path_to_interim_data
+            elif "deployment" in s3_key:
+                path = path_to_deployment_data
+            else:
+                raise ValueError(
+                    f"Cannot find designated local file path for S3 bucket key {s3_key}."
+                )
+            # Write file to local file system
+            file_name = os.path.basename(s3_key)
+            with open(os.path.join(path, file_name), "wb") as binary_file:
+                binary_file.write(io.BytesIO(s3_obj["Body"].read()).read())
+
         # Call parent init
         super().__init__(
             path_to_raw_data=path_to_raw_data,
@@ -686,32 +721,41 @@ class RobHistoricizerLocal(RobHistoricizer):
             path_join=os.path.sep,
         )
 
-        # Download data from S3 bucket (https://s3.console.aws.amazon.com/s3/buckets/rob-oliver)
-        # TODO implement this
-
     def _get_changelogs(self) -> List[str]:
-        pass
+        absolute_changelogs = glob.glob(os.path.join(self.path_to_changelogs, "*"))
+        return [os.path.basename(changelog) for changelog in absolute_changelogs]
 
     def _delete_changelog(self, changelog_name: str) -> None:
-        pass
+        try:
+            os.remove(os.path.join(self.path_to_changelogs, changelog_name))
+        except FileNotFoundError as error:
+            print(error)
+        except:
+            print("An unexpected error has occurred.")
+            raise
 
     def _get_rob_raw(self, changelog_name: str) -> io.BytesIO:
-        pass
+        with open(
+            os.path.join(self.path_to_changelogs, changelog_name), "rb"
+        ) as binary_file:
+            rob_raw = io.BytesIO(binary_file.read())
+        return rob_raw
 
     def _read_csv(self, path_to_csv: str) -> pd.DataFrame:
-        pass
+        return pd.read_csv(path_to_csv)
 
     def _clean_missing_location(self):
         pass
 
     @staticmethod
     def _write_csv(df: pd.DataFrame, path_to_csv: str) -> None:
-        pass
+        df.to_csv(path_to_csv)
 
 
 if __name__ == "__main__":
-    rob_historicizer_aws = RobHistoricizerAWS()
-    rob_historicizer_aws.update_rob()
+    rob_historicizer_local = RobHistoricizerLocal()
+    # rob_historicizer_aws = RobHistoricizerAWS()
+    # rob_historicizer_aws.update_rob()
     # pdf_files = rob_historicizer_aws.s3_client.list_objects_v2(
     #     Bucket=rob_historicizer_aws.s3_bucket, Prefix=rob_historicizer_aws.path_to_raw_data
     # )["Contents"]
