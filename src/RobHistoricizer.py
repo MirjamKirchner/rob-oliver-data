@@ -24,7 +24,7 @@ from clearml import Dataset
 
 PROJECT_NAME = "rob-oliver"
 DATASET_NAME = "rob"
-PATH_TO_CLEARML_DATASET = "../data/clearml_dataset"
+PATH_TO_OUT = "../data/out"
 
 
 class RobGui(PandasGui):
@@ -119,22 +119,30 @@ class RobHistoricizer(ABC):
         self.path_join = path_join
 
         # Existing data
+        self.changelogs = self._get_changelogs()
+        self.rob_raw = [self._get_rob_raw(changelog) for changelog in self.changelogs]
         self.df_finding_places = self._read_csv(
             path_join.join([path_to_interim_data, "catalogued_finding_places.csv"])
         )
-        self.df_rob_historicized = self._read_csv(
+        df_rob_historicized = self._read_csv(
             path_join.join([path_to_deployment_data, "rob.csv"])
         ).astype(
             {
                 "Long": "float64",
                 "Lat": "float64",
                 "Einlieferungsdatum": "datetime64[ns]",
-                "Erstellt_am": "datetime64[ns]",
-                "Sys_aktualisiert_am": "datetime64[ns]",
             }
         )
-        self.changelogs = self._get_changelogs()
-        self.rob_raw = [self._get_rob_raw(changelog) for changelog in self.changelogs]
+        self.df_rob_historicized = df_rob_historicized.assign(
+            Erstellt_am=pd.to_datetime(
+                df_rob_historicized["Erstellt_am"], format="%Y-%m-%d %H:%M:%S", utc=True
+            ),
+            Sys_aktualisiert_am=pd.to_datetime(
+                df_rob_historicized["Sys_aktualisiert_am"],
+                format="%Y-%m-%d %H:%M:%S",
+                utc=True,
+            ),
+        )
 
         # Interim and new data (to be filled during processing)
         self.df_rob_cleaned = None
@@ -423,15 +431,12 @@ class RobHistoricizer(ABC):
         entry_exists = df_rob_new["Sys_hash"].isin(df_rob_old["Sys_hash"])
         if entry_exists.all():  # Abort historcization procedure if nothing has changed
             print(
-                "No changes in self.rob_raw with respect to self.df_rob_historicized."
+                "No changes in `self.rob_raw with respect` to `self.df_rob_historicized`. Terminating update."
             )
             sys.exit(0)
 
         # Return entries that do not exist in `df_rob_old`
         return df_rob_new[~entry_exists].assign(Sys_aktualisiert_am=datetime.now())
-
-    def _clean_missing_location(self):
-        raise NotImplementedError
 
     def update_rob(self) -> None:
         """
@@ -439,12 +444,17 @@ class RobHistoricizer(ABC):
         1. Reads the raw PDF into a `pandas Dataframe`
         2. Corrects spelling mistakes in the names of finding places in the raw data and adds geo-coordinates
         3. Updates the catalogued finding places
-        4. Historicizes the cleaned data and saves it
+        4. Saves the cleaned input data and catalogued finding places to the local file system
 
         Returns
         -------
         None
         """
+        # Check for changes
+        if len(self.changelogs) == 0:
+            print("No changes new files exist. Terminating update.")
+            sys.exit(0)
+
         # Read raw data from ByteIO object into pandas DataFrame
         df_rob_raw = pd.concat(
             [self.read_rob_raw(rob_raw) for rob_raw in self.rob_raw]
@@ -511,19 +521,16 @@ class RobHistoricizer(ABC):
         )
         # local (for clearml versioning)
         self.df_new_finding_places.to_csv(
-            os.path.join(PATH_TO_CLEARML_DATASET, "catalogued_finding_places.csv"),
+            os.path.join(PATH_TO_OUT, "catalogued_finding_places.csv"),
             index=False,
         )
-        self.df_new_rob_historicized.to_csv(  # TODO should this really happen generally? Or does LocalRob need its own saving-function
-            os.path.join(PATH_TO_CLEARML_DATASET, "rob.csv"), index=False
+        self.df_new_rob_historicized.to_csv(
+            os.path.join(PATH_TO_OUT, "rob.csv"), index=False
         )
 
         # Update changelogs
         for changelog in self.changelogs:
             self._delete_changelog(changelog)
-
-        # Version `df_new_finding_places` and `df_new_rob_historicized` in a clearml (https://clear.ml/) dataset
-        self._add_to_clearml_dataset()
 
     @staticmethod
     @abstractmethod
@@ -545,32 +552,6 @@ class RobHistoricizer(ABC):
         None
         """
         raise NotImplementedError
-
-    @staticmethod
-    def _add_to_clearml_dataset() -> None:
-        """
-        Adds the dataset historicized in `self.update_rob` to a clearml dataset
-        (https://clear.ml/docs/latest/docs/references/sdk/dataset/). Clearml datasets are tracked by version, i.e., we
-        can restore previous versions of the dataset.
-
-        Returns
-        -------
-        None
-        """
-
-        dataset = Dataset.create(
-            dataset_name=DATASET_NAME,
-            dataset_project=PROJECT_NAME,
-            parent_datasets=[
-                Dataset.get(dataset_project=PROJECT_NAME, dataset_name=DATASET_NAME).id
-            ],
-        )
-
-        # Sync local folder
-        dataset.sync_folder(local_path=os.path.join(PATH_TO_CLEARML_DATASET))
-
-        # Finalize and upload the data
-        dataset.finalize(auto_upload=True)
 
 
 class RobHistoricizerAWS(RobHistoricizer):
@@ -652,6 +633,50 @@ class RobHistoricizerAWS(RobHistoricizer):
         self.s3_client.put_object(
             Body=csv_buffer.getvalue(), Bucket=self.s3_bucket, Key=path_to_csv
         )
+
+    @staticmethod
+    def _add_to_clearml_dataset() -> None:
+        """
+        Adds the dataset historicized in `self.update_rob` to a clearml dataset
+        (https://clear.ml/docs/latest/docs/references/sdk/dataset/). Clearml datasets are tracked by version, i.e., we
+        can restore previous versions of the dataset.
+
+        Returns
+        -------
+        None
+        """
+
+        dataset = Dataset.create(
+            dataset_name=DATASET_NAME,
+            dataset_project=PROJECT_NAME,
+            parent_datasets=[
+                Dataset.get(dataset_project=PROJECT_NAME, dataset_name=DATASET_NAME).id
+            ],
+        )
+
+        # Sync local folder
+        dataset.sync_folder(local_path=os.path.join(PATH_TO_OUT))
+
+        # Finalize and upload the data
+        dataset.finalize(auto_upload=True)
+
+    def update_rob(self) -> None:
+        """
+        Updates  `self.df_new_rob_historicized`. That is,
+        1. Reads the raw PDF into a `pandas Dataframe`
+        2. Corrects spelling mistakes in the names of finding places in the raw data and adds geo-coordinates
+        3. Updates the catalogued finding places
+        4. Saves the cleaned input data and catalogued finding places to the local file system
+        4. Creates a new version of the cleaned input data and catalogued finding places on clear-ml (https://clear.ml/)
+
+        Returns
+        -------
+        None
+        """
+        super().update_rob()
+
+        # Version `df_new_finding_places` and `df_new_rob_historicized` in a clearml (https://clear.ml/) dataset
+        self._add_to_clearml_dataset()
 
 
 class RobHistoricizerLocal(RobHistoricizer):
@@ -744,35 +769,19 @@ class RobHistoricizerLocal(RobHistoricizer):
     def _read_csv(self, path_to_csv: str) -> pd.DataFrame:
         return pd.read_csv(path_to_csv)
 
-    def _clean_missing_location(self):
-        pass
-
     @staticmethod
     def _write_csv(df: pd.DataFrame, path_to_csv: str) -> None:
         df.to_csv(path_to_csv)
 
 
 if __name__ == "__main__":
-    rob_historicizer_local = RobHistoricizerLocal()
-    # rob_historicizer_aws = RobHistoricizerAWS()
-    # rob_historicizer_aws.update_rob()
-    # pdf_files = rob_historicizer_aws.s3_client.list_objects_v2(
-    #     Bucket=rob_historicizer_aws.s3_bucket, Prefix=rob_historicizer_aws.path_to_raw_data
-    # )["Contents"]
-    # changelogs = [
-    #     os.path.basename(pdf_file["Key"])[:-3]+"log"
-    #     for pdf_file in pdf_files
-    #     if os.path.basename(pdf_file["Key"]) != ""
-    # ]
-    # for changelog in changelogs:
-    #     rob_historicizer_aws.s3_client.put_object(
-    #         Bucket=rob_historicizer_aws.s3_bucket, Key=f"{rob_historicizer_aws.path_to_changelogs}/{changelog}"
-    #     )
-    # pdf_rob_raw_20220429 = rob_historicizer_aws._get_rob_raw("20220429_1.6HomepageHeuler.log")
-    # df_rob_raw_20220429 = rob_historicizer_aws.read_rob_raw(pdf_rob_raw_20220429)
-    # df_rob_raw_20220429_dtypes = df_rob_raw_20220429.astype(
-    #         {
-    #             "Einlieferungsdatum": "datetime64[ns]",
-    #         }
-    #     ).assign(Erstellt_am=pd.to_datetime(df_rob_raw_20220429["Erstellt_am"], utc=True))
-    print(":-D")
+    historicizer_class = ["aws", "local"][0]
+    if historicizer_class == "aws":
+        rob_historicizer = RobHistoricizerAWS()
+    elif historicizer_class == "local":
+        rob_historicizer = RobHistoricizerLocal()
+    else:
+        raise ValueError(
+            f"Invalid `historicizer_class` {historicizer_class}. Choose in `['aws', 'local']`."
+        )
+    rob_historicizer.update_rob()
