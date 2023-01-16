@@ -87,6 +87,23 @@ there are any errors in the uploaded data sets, I can quickly recover to one of 
 understanding fo their services.
 
 ## Quick start
+I assume you have Python 3.8+ installed on your local machine.
+
+1. Clone this repository, e.g., by running the following command in your shell:
+```
+git clone https://github.com/MirjamKirchner/rob-oliver-data.git
+```
+2. Create a virtual environment in the ``rob-oliver-data`` repository and activate it, either by using the Python
+integrated development environment (IDE) of your choice (such as [PyCharm](https://www.jetbrains.com/pycharm/) or
+[Visual Studio Code](https://code.visualstudio.com/)), or by following the instructions
+[here](https://realpython.com/python-virtual-environments-a-primer/).
+
+
+3. With your virtual environment being active, install the packages specified in the ``requirements.txt`` file,
+e.g., by executing the following command in your shell:
+```
+pip install -r requirements.txt
+```
 
 
 ## Learning resources
