@@ -5,26 +5,26 @@
 [rob-oliver-app](https://github.com/MirjamKirchner/rob-oliver-app) project
 
 
-##Introduction
+## Introduction
 This repository is part of a pet project in which I visualize data about the animal admittances to the [Seehundstation
 Friedrichskoog](https://www.seehundstation-friedrichskoog.de/en/) - a seal rescue station in the North of Germany.
 If you are interested in learning about the data pre-processing procedure, stay here. If you are more curious about the
 visualization of the pre-processed data in an interactive dashboard, please go to the repository
 [rob-oliver-app](https://github.com/MirjamKirchner/rob-oliver-app).
 
-In the following, I'll briefly talk you through the [pre-processing procedure](##Pre-processing procedure) and the
+In the following, I'll briefly talk you through the [pre-processing procedure](## Pre-processing procedure) and the
 related services (e.g., from [Amazon Web Services](https://aws.amazon.com/) (AWS)). Next, I'll give you a
 [quick start](## Quick start), in case you would like to try some of the described functionality on your local machine.
 Finally, I've summarized the most important [learning resources](## Learning resources) that helped me throughout the
 implementation of this project. I hope, this will give you a head start if you would like to build something similar
 yourself. Happy reading!
 
-##Pre-processing procedure
+## Pre-processing procedure
 In this section, we walk through the pre-processing procedure that transforms information about seal admissions from a
 portable-document-format (PDF) file into a comma-separated-value (CSV) file.
 
 ### 1. Understanding the raw data
-![raw data](./data/images/raw-data.png)
+![raw data](./data/images/raw-data.PNG)
 **Figure 2**: Excerpt of an example of a PDF-file that serves as raw data to our pre-processing procedure
 
 The [Seehundstation Friedrichskoog](https://www.seehundstation-friedrichskoog.de/en/) provides
