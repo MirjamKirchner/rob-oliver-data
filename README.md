@@ -12,10 +12,10 @@ If you are interested in learning about the data pre-processing procedure, stay 
 visualization of the pre-processed data in an interactive dashboard, please go to the repository
 [rob-oliver-app](https://github.com/MirjamKirchner/rob-oliver-app).
 
-In the following, I'll briefly talk you through the [pre-processing procedure](## Pre-processing procedure) and the
+In the following, I'll briefly talk you through the [pre-processing procedure](#pre-processing-procedure) and the
 related services (e.g., from [Amazon Web Services](https://aws.amazon.com/) (AWS)). Next, I'll give you a
-[quick start](## Quick start), in case you would like to try some of the described functionality on your local machine.
-Finally, I've summarized the most important [learning resources](## Learning resources) that helped me throughout the
+[quick start](#quick-start), in case you would like to try some of the described functionality on your local machine.
+Finally, I've summarized the most important [learning resources](#learning-resources) that helped me throughout the
 implementation of this project. I hope, this will give you a head start if you would like to build something similar
 yourself. Happy reading!
 
