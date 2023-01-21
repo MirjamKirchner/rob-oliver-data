@@ -174,7 +174,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -268,7 +268,7 @@
          id="tspan2683"
          x="41.928185"
          y="116.03868"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:'MV Boli';-inkscape-font-specification:'MV Boli';text-align:start;text-anchor:start;stroke-width:0.264583">versionize</tspan><tspan
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:'MV Boli';-inkscape-font-specification:'MV Boli';text-align:start;text-anchor:start;stroke-width:0.264583">versioning of</tspan><tspan
          sodipodi:role="line"
          x="41.928185"
          y="124.60892"

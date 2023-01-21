@@ -4,6 +4,11 @@
 **Figure 1**: Architecture of the [rob-oliver-data](https://github.com/MirjamKirchner/rob-oliver-data) and
 [rob-oliver-app](https://github.com/MirjamKirchner/rob-oliver-app) project
 
+### Table of contents
+- [Introduction](#introduction)
+- [Pre-processing procedure](#pre-processing-procedure)
+- [Quick start](#quick-start)
+- [Learning resources](#learning-resources)
 
 ## Introduction
 This repository is part of a pet project in which I visualize data about the animal admittances to the [Seehundstation
@@ -12,10 +17,10 @@ If you are interested in learning about the data pre-processing procedure, stay 
 visualization of the pre-processed data in an interactive dashboard, please go to the repository
 [rob-oliver-app](https://github.com/MirjamKirchner/rob-oliver-app).
 
-In the following, I'll briefly talk you through the [pre-processing procedure](#pre-processing-procedure) and the
+In the following, I'll briefly talk you through the [Pre-processing procedure](#pre-processing-procedure) and the
 related services (e.g., from [Amazon Web Services](https://aws.amazon.com/) (AWS)). Next, I'll give you a
-[quick start](#quick-start), in case you would like to try some of the described functionality on your local machine.
-Finally, I've summarized the most important [learning resources](#learning-resources) that helped me throughout the
+[Quick start](#quick-start), in case you would like to try some of the described functionality on your local machine.
+Finally, I've summarized the most important [Learning resources](#learning-resources) that helped me throughout the
 implementation of this project. I hope, this will give you a head start if you would like to build something similar
 yourself. Happy reading!
 
@@ -49,7 +54,7 @@ station provides their data and, thus, simply had to work with it.
 To not miss any updates of the raw data, I've set up an automated job on AWS that regularly checks the seal website for
 a new PDF file (see Figure 1).
 
-To be precise, I use the [EventBride](https://aws.amazon.com/eventbridge/) service to
+To be precise, I use the [EventBridge](https://aws.amazon.com/eventbridge/) service to
 trigger a [lambda](https://aws.amazon.com/lambda/) function on a set schedule: Mondays and Thursdays at 03.00 o'clock
 (coordinated universal time). I deem this sufficiently frequent because the raw PDF file described in *1. Understanding
 the raw data* is updated on an irregular basis, as the frequency of animal admissions depends on the pupping seasons of
@@ -93,10 +98,10 @@ I assume you have Python 3.8+ installed on your local machine.
 ```
 git clone https://github.com/MirjamKirchner/rob-oliver-data.git
 ```
-2. Create a virtual environment in the ``rob-oliver-data`` repository and activate it, either by using the Python
-integrated development environment (IDE) of your choice (such as [PyCharm](https://www.jetbrains.com/pycharm/) or
-[Visual Studio Code](https://code.visualstudio.com/)), or by following the instructions
-[here](https://realpython.com/python-virtual-environments-a-primer/).
+2. On your local machine, create a virtual environment in the ``rob-oliver-data`` repository and activate it, either by
+using the Python integrated development environment (IDE) of your choice (such as
+[PyCharm](https://www.jetbrains.com/pycharm/) or [Visual Studio Code](https://code.visualstudio.com/)), or by following
+the instructions [here](https://realpython.com/python-virtual-environments-a-primer/).
 
 
 3. With your virtual environment being active, install the packages specified in the ``requirements.txt`` file,
@@ -105,6 +110,43 @@ e.g., by executing the following command in your shell:
 pip install -r requirements.txt
 ```
 
+4. Create a folder `./data/out`. This is the location where the result files of the pre-processing procedure will be
+saved to.
+
+5. To try out the functionalities described section [Pre-processing procedure](#pre-processing-procedure),
+you may execute the code under the name-main idiom in  `./src/RobHistoricizer.py` with `historicizer_class = "local"`.
+Note that running the code below with `historicizer_class = "aws"` will throw an error as you do not have any write
+access to the [S3](https://aws.amazon.com/s3/) bucket where the data is stored. If you want to gain a detailed
+understanding of how the pre-processing procedure is implemented, I recommend you to start with function `update_rob()`
+in class `RobHistoricizer(ABC)` and work your way forwards from there.
+
+```
+if __name__ == "__main__":
+    historicizer_class = ["aws", "local"][1]
+    if historicizer_class == "aws":
+        rob_historicizer = RobHistoricizerAWS()
+    elif historicizer_class == "local":
+        rob_historicizer = RobHistoricizerLocal()
+    else:
+        raise ValueError(
+            f"Invalid `historicizer_class` {historicizer_class}. Choose in `['aws', 'local']`."
+        )
+    rob_historicizer.update_rob()
+```
+
+
 
 ## Learning resources
+**AWS**
+- [lambda](https://aws.amazon.com/lambda/) function
+  - [Deploying Python code in lamda function](https://aws.amazon.com/premiumsupport/knowledge-center/lambda-python-package-compatible/)
+  - [Give a lambda function access to an S3 bucket](https://repost.aws/knowledge-center/lambda-execution-role-s3-bucket)
+- [Giving public read access to an S3 bucket](https://bobbyhadz.com/blog/aws-s3-allow-public-read-access)
+- [Execute a lambda function on a schedule with EventBridge](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-run-lambda-schedule.html)
+  - [Helper to get the cron schedule expression right](https://crontab.guru/#0_3)
+- [Helper to get AWS policies right](https://awspolicygen.s3.amazonaws.com/policygen.html)
 
+**ClearML**
+- [ClearML](https://clear.ml/) data sets:
+  - [Docs](https://clear.ml/docs/latest/docs/references/sdk/dataset)
+  - [YouTube tutorial](https://youtu.be/S2pz9jn26uI)
