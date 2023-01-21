@@ -19,9 +19,9 @@ visualization of the pre-processed data in an interactive dashboard, please go t
 
 In the following, I'll briefly talk you through the [Pre-processing procedure](#pre-processing-procedure) and the
 related services (e.g., from [Amazon Web Services](https://aws.amazon.com/) (AWS)). Next, I'll give you a
-[Quick start](#quick-start), in case you would like to try some of the described functionality on your local machine.
-Finally, I've summarized the most important [Learning resources](#learning-resources) that helped me throughout the
-implementation of this project. I hope, this will give you a head start if you would like to build something similar
+[Quick start](#quick-start), in case you would like to try out some of the described functionality on your local
+machine. Finally, I've summarized the most important [Learning resources](#learning-resources) that helped me throughout
+the implementation of this project. I hope, this will give you a head start if you would like to build something similar
 yourself. Happy reading!
 
 ## Pre-processing procedure
@@ -56,10 +56,11 @@ a new PDF file (see Figure 1).
 
 To be precise, I use the [EventBridge](https://aws.amazon.com/eventbridge/) service to
 trigger a [lambda](https://aws.amazon.com/lambda/) function on a set schedule: Mondays and Thursdays at 03.00 o'clock
-(coordinated universal time). I deem this sufficiently frequent because the raw PDF file described in *1. Understanding
-the raw data* is updated on an irregular basis, as the frequency of animal admissions depends on the pupping seasons of
-the breeds in the area. Furthermore,  even during high season (Summer for harbor seals and Winter for gray seals), I've
-observed that the PDF is rarely updated more frequently than twice a week.
+(coordinated universal time). I deem this sufficiently frequent because the raw PDF file described in section
+[1. Understanding the raw data](#1-understanding-the-raw-data) is updated on an irregular basis, as the frequency of
+animal admissions depends on the pupping seasons of the breeds in the area. Furthermore,  even during high season
+(Summer for harbor seals and Winter for gray seals), I've observed that the PDF is rarely updated more frequently than
+twice a week.
 
 The [lambda](https://aws.amazon.com/lambda/) function compares the PDF file currently available on the
 [seal website](https://www.seehundstation-friedrichskoog.de/wp-content/heuler/1.6HomepageHeuler.pdf) with the already
@@ -68,8 +69,8 @@ existing files in an [S3](https://aws.amazon.com/s3/) bucket. If the PDF file al
 [S3](https://aws.amazon.com/s3/) bucket and a descriptive change log is created for the file.
 
 ### 3. Pre-processing the raw data
-During the pre-processing, we add the following features to the features in the raw data (see *1. Understanding the raw
-data*):
+During the pre-processing, we add the following features to the raw data (see section
+[1. Understanding the raw data](#1-understanding-the-raw-data)):
 - **Sys_id**: A unique identifier of an admitted animal that allows us to track its  status (: Aktuell).
 - **Lat**: The latitude geographic coordinate of the finding place (: Fundort).
 - **Long**: The longitude geographic coordinate of the finding place (: Fundort).
@@ -83,10 +84,10 @@ to Ausgewildert (: released).
 From looking at the architecture depicted in Figure 1, you might wonder why the pre-processing step to calculate the
 features above does not run on AWS but on my local machine. The reason behind it is that identifying the geographic
 coordinates of a finding place is currently not 100 % reliable and, therefore, not fully automated. Instead, there is a
-manual review step before I upload the pre-processed data in to the [S3](https://aws.amazon.com/s3/) bucket, and to
+manual review step before I upload the pre-processed data into the [S3](https://aws.amazon.com/s3/) bucket, and to
 [ClearML](https://clear.ml/). Here, I use [ClearML](https://clear.ml/) for versioning my data sets, meaning that if
 there are any errors in the uploaded data sets, I can quickly recover to one of their earlier
-[versions](https://clear.ml/docs/latest/docs/hyperdatasets/dataset/) on ClearML. Note, that this
+[versions](https://clear.ml/docs/latest/docs/hyperdatasets/dataset/) on [ClearML](https://clear.ml/). Note, that this
 [functionality](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html) can also be provided by the
 [S3](https://aws.amazon.com/s3/) directly, and that I used [ClearML](https://clear.ml/) primarily to gain a better
 understanding fo their services.
@@ -117,7 +118,7 @@ saved to.
 you may execute the code under the name-main idiom in  `./src/RobHistoricizer.py` with `historicizer_class = "local"`.
 Note that running the code below with `historicizer_class = "aws"` will throw an error as you do not have any write
 access to the [S3](https://aws.amazon.com/s3/) bucket where the data is stored. If you want to gain a detailed
-understanding of how the pre-processing procedure is implemented, I recommend you to start with function `update_rob()`
+understanding of how the pre-processing procedure is implemented, I recommend you to start with function `update_rob`
 in class `RobHistoricizer(ABC)` and work your way forwards from there.
 
 ```
@@ -142,7 +143,7 @@ if __name__ == "__main__":
   - [Deploying Python code in lamda function](https://aws.amazon.com/premiumsupport/knowledge-center/lambda-python-package-compatible/)
   - [Give a lambda function access to an S3 bucket](https://repost.aws/knowledge-center/lambda-execution-role-s3-bucket)
 - [Giving public read access to an S3 bucket](https://bobbyhadz.com/blog/aws-s3-allow-public-read-access)
-- [Execute a lambda function on a schedule with EventBridge](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-run-lambda-schedule.html)
+- [Use EventBridge to Execute a lambda function on a schedule](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-run-lambda-schedule.html)
   - [Helper to get the cron schedule expression right](https://crontab.guru/#0_3)
 - [Helper to get AWS policies right](https://awspolicygen.s3.amazonaws.com/policygen.html)
 
