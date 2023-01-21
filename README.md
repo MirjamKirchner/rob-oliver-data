@@ -12,9 +12,10 @@
 
 ## Introduction
 This repository is part of a pet project in which I visualize data about the animal admittances to the [Seehundstation
-Friedrichskoog](https://www.seehundstation-friedrichskoog.de/en/) - a seal rescue station in the North of Germany.
-If you are interested in learning about the data pre-processing procedure, stay here. If you are more curious about the
-visualization of the pre-processed data in an interactive dashboard, please go to the repository
+Friedrichskoog](https://www.seehundstation-friedrichskoog.de/en/) - a seal rescue station in the North of Germany. See
+the final result [here](http://where-is-rob-oliver-pandagoesdatascience.eu.pythonanywhere.com/). If you are interested
+in learning about the data pre-processing procedure, stay here. If you are more curious about the visualization of the
+pre-processed data in an interactive dashboard, please go to the repository
 [rob-oliver-app](https://github.com/MirjamKirchner/rob-oliver-app).
 
 In the following, I'll briefly talk you through the [Pre-processing procedure](#pre-processing-procedure) and the
