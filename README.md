@@ -31,7 +31,7 @@ portable-document-format (PDF) file into a comma-separated-value (CSV) file.
 
 ### 1. Understanding the raw data
 ![raw data](./data/images/raw-data.PNG)
-**Figure 2**: Excerpt of an example of a PDF-file that serves as raw data to our pre-processing procedure
+**Figure 2**: Excerpt of an example of a PDF file that serves as raw data to our pre-processing procedure
 
 The [Seehundstation Friedrichskoog](https://www.seehundstation-friedrichskoog.de/en/) provides
 information about seal admissions to their station on their
