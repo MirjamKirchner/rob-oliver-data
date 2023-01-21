@@ -114,7 +114,7 @@ pip install -r requirements.txt
 4. Create a folder `./data/out`. This is the location where the result files of the pre-processing procedure will be
 saved to.
 
-5. To try out the functionalities described section [Pre-processing procedure](#pre-processing-procedure),
+5. To try out the functionalities described in section [Pre-processing procedure](#pre-processing-procedure),
 you may execute the code under the name-main idiom in  `./src/RobHistoricizer.py` with `historicizer_class = "local"`.
 Note that running the code below with `historicizer_class = "aws"` will throw an error as you do not have any write
 access to the [S3](https://aws.amazon.com/s3/) bucket where the data is stored. If you want to gain a detailed
