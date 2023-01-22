@@ -612,7 +612,8 @@ class RobHistoricizerAWS(RobHistoricizer):
         )
 
     def _read_csv(self, path_to_csv: str) -> pd.DataFrame:
-        return pd.read_csv(self.path_join.join(["s3:/", self.s3_bucket, path_to_csv]))
+        csv = self.s3_client.get_object(Bucket=self.s3_bucket, Key=path_to_csv)["Body"]
+        return pd.read_csv(csv)
 
     def _get_rob_raw(self, changelog_name) -> io.BytesIO:
         try:
@@ -779,7 +780,7 @@ class RobHistoricizerLocal(RobHistoricizer):
 
 
 if __name__ == "__main__":
-    historicizer_class = ["aws", "local"][1]
+    historicizer_class = ["aws", "local"][0]
     if historicizer_class == "aws":
         rob_historicizer = RobHistoricizerAWS()
     elif historicizer_class == "local":
