@@ -13,7 +13,7 @@ from copy import copy
 from abc import ABC, abstractmethod
 from typing import List, Tuple
 from PyPDF2 import PdfFileReader
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 from pandasgui.gui import PandasGui
 from PyQt5 import QtGui
@@ -135,11 +135,13 @@ class RobHistoricizer(ABC):
         )
         self.df_rob_historicized = df_rob_historicized.assign(
             Erstellt_am=pd.to_datetime(
-                df_rob_historicized["Erstellt_am"], format="%Y-%m-%d %H:%M:%S", utc=True
+                df_rob_historicized["Erstellt_am"],
+                format="%Y-%m-%d %H:%M:%S%z",
+                utc=True,
             ),
             Sys_aktualisiert_am=pd.to_datetime(
                 df_rob_historicized["Sys_aktualisiert_am"],
-                format="%Y-%m-%d %H:%M:%S",
+                format="%Y-%m-%d %H:%M:%S%z",
                 utc=True,
             ),
         )
@@ -436,7 +438,9 @@ class RobHistoricizer(ABC):
             sys.exit(0)
 
         # Return entries that do not exist in `df_rob_old`
-        return df_rob_new[~entry_exists].assign(Sys_aktualisiert_am=datetime.now())
+        return df_rob_new[~entry_exists].assign(
+            Sys_aktualisiert_am=datetime.now(timezone.utc)
+        )
 
     def update_rob(self) -> None:
         """
@@ -608,15 +612,16 @@ class RobHistoricizerAWS(RobHistoricizer):
         )
 
     def _read_csv(self, path_to_csv: str) -> pd.DataFrame:
-        return pd.read_csv(self.path_join.join(["s3:/", self.s3_bucket, path_to_csv]))
+        csv = self.s3_client.get_object(Bucket=self.s3_bucket, Key=path_to_csv)["Body"]
+        return pd.read_csv(csv)
 
-    def _get_rob_raw(self, changelog) -> io.BytesIO:
+    def _get_rob_raw(self, changelog_name) -> io.BytesIO:
         try:
             return io.BytesIO(
                 self.s3_client.get_object(
                     Bucket=self.s3_bucket,
                     Key=self.path_join.join(
-                        [self.path_to_raw_data, changelog[:-3] + "pdf"]
+                        [self.path_to_raw_data, changelog_name[:-3] + "pdf"]
                     ),
                 )["Body"].read()
             )
@@ -701,7 +706,7 @@ class RobHistoricizerLocal(RobHistoricizer):
         for path in local_paths:
             if not os.path.exists(path):
                 os.makedirs(path)
-                print(f"The directory {path} was created!")
+                print(f"The directory {path} was created.")
 
         # Download data from S3 bucket (https://s3.console.aws.amazon.com/s3/buckets/rob-oliver)
         # Get s3 client
@@ -761,7 +766,7 @@ class RobHistoricizerLocal(RobHistoricizer):
 
     def _get_rob_raw(self, changelog_name: str) -> io.BytesIO:
         with open(
-            os.path.join(self.path_to_changelogs, changelog_name), "rb"
+            os.path.join(self.path_to_raw_data, changelog_name[:-3] + "pdf"), "rb"
         ) as binary_file:
             rob_raw = io.BytesIO(binary_file.read())
         return rob_raw
