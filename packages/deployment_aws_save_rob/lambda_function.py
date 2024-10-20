@@ -13,6 +13,8 @@ from PyPDF2 import PdfFileReader
 AWS_ACCESS_KEY_ID = None
 AWS_SECRET_ACCESS_KEY = None
 RUN_LOCAL = False
+
+
 if RUN_LOCAL:
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
