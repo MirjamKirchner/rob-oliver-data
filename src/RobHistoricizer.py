@@ -262,7 +262,9 @@ class RobHistoricizer(ABC):
         try:
             closest_match = difflib.get_close_matches(
                 finding_place,
-                list(self.dict_finding_place_corrections.keys()) + list(self.df_finding_places["Name"]),  # TODO drop NA
+                pd.Series(
+                    list(self.dict_finding_place_corrections.keys()) + list(self.df_finding_places["Name"])
+                ).dropna(),
                 n=1,
                 cutoff=0.0
             )[0]
