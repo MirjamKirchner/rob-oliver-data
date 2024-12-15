@@ -1,81 +1,27 @@
-import pandas as pd
-import boto3
+import difflib
+import glob
 import io
 import os
-import botocore
-import tabula
-import difflib
-import numpy as np
-import inspect
 import sys
-import glob
-from copy import copy
 from abc import ABC, abstractmethod
-from typing import List, Tuple
-from PyPDF2 import PdfFileReader
+from copy import copy
 from datetime import datetime, timezone
-from typing import Dict
-from pandasgui.gui import PandasGui
-from PyQt5 import QtGui
-from IPython.core.magic import register_line_magic
-from operator import itemgetter
 from hashlib import sha256
+from typing import Dict, List, Tuple
+
+import boto3
+import botocore
+import numpy as np
+import pandas as pd
+import tabula
+from PyPDF2 import PdfReader
 from clearml import Dataset
+from pandasgui import show
+from typing_extensions import Literal
 
 PROJECT_NAME = "rob-oliver"
 DATASET_NAME = "rob"
 PATH_TO_OUT = "../data/out"
-
-
-class RobGui(PandasGui):
-    def closeEvent(self, e: QtGui.QCloseEvent) -> None:
-        """
-        Saves the manual changes of the given `pandas DataFrame` to the instance of `RobGui`. This allows for manual
-        corrections of suggested names and geo coordinates of finding places.
-
-        Parameters
-        ----------
-        e
-            A `QtGui.QCloseEvent`.
-
-        Returns
-        -------
-        None
-        """
-        df_rob_cleaned = self.get_dataframes()["df_rob_cleaned"]
-
-        # Save distinct finding places
-        df_new_finding_places = (
-            df_rob_cleaned.copy()[
-                ["suggested_finding_place", "suggested_lat", "suggested_long"]
-            ]
-            .drop_duplicates()
-            .rename(
-                columns={
-                    "suggested_finding_place": "Name",
-                    "suggested_lat": "Lat",
-                    "suggested_long": "Long",
-                }
-            )
-        )
-        self.store.add_dataframe(df_new_finding_places, "df_new_finding_places")
-
-        # Reformat and save df_rob_cleaned
-        df_rob_manually_corrected = (
-            df_rob_cleaned.copy()
-            .drop(columns=["raw_finding_place"])
-            .rename(
-                columns={
-                    "suggested_finding_place": "Fundort",
-                    "suggested_lat": "Lat",
-                    "suggested_long": "Long",
-                }
-            )
-        )
-        self.store.add_dataframe(df_rob_manually_corrected, "df_rob_manually_corrected")
-
-        # Call parent-class function
-        super().closeEvent(e)
 
 
 class RobHistoricizer(ABC):
@@ -88,7 +34,7 @@ class RobHistoricizer(ABC):
         path_to_deployment_data: str,
         path_join: str,
     ):
-        """
+        """c
         The abstract base class to historicize information about seal pups rescued by the Seehundstation Friedrichskoog.
 
         Parameters
@@ -124,32 +70,29 @@ class RobHistoricizer(ABC):
         self.df_finding_places = self._read_csv(
             path_join.join([path_to_interim_data, "catalogued_finding_places.csv"])
         )
+        df_finding_place_corrections = self._read_csv(
+            path_join.join([path_to_interim_data, "finding_place_corrections.csv"])
+        )
+        self.dict_finding_place_corrections = self._create_corrections_dict(df_finding_place_corrections)
         df_rob_historicized = self._read_csv(
             path_join.join([path_to_deployment_data, "rob.csv"])
         ).astype(
             {
                 "Long": "float64",
                 "Lat": "float64",
-                "Einlieferungsdatum": "datetime64[ns]",
+                "Einlieferungsdatum": "datetime64[ns]"
             }
         )
         self.df_rob_historicized = df_rob_historicized.assign(
-            Erstellt_am=pd.to_datetime(
-                df_rob_historicized["Erstellt_am"],
-                format="%Y-%m-%d %H:%M:%S%z",
-                utc=True,
-            ),
-            Sys_aktualisiert_am=pd.to_datetime(
-                df_rob_historicized["Sys_aktualisiert_am"],
-                format="%Y-%m-%d %H:%M:%S%z",
-                utc=True,
-            ),
+            Erstellt_am=pd.to_datetime(df_rob_historicized["Erstellt_am"]),
+            Sys_aktualisiert_am=pd.to_datetime(df_rob_historicized["Sys_aktualisiert_am"])
         )
 
         # Interim and new data (to be filled during processing)
         self.df_rob_cleaned = None
         self.df_new_rob_historicized = None
         self.df_new_finding_places = None
+        self.dict_new_finding_place_corrections = None
 
     @abstractmethod
     def _get_changelogs(self) -> List[str]:
@@ -197,6 +140,16 @@ class RobHistoricizer(ABC):
         """
         raise NotImplementedError
 
+    @staticmethod
+    def _create_corrections_dict(df_finding_place_corrections: pd.DataFrame) -> Dict[str, str]:
+        return dict(
+            zip(
+                df_finding_place_corrections["Original"].to_list(),
+                df_finding_place_corrections["Correction"].to_list()
+            )
+        )
+
+
     @abstractmethod
     def _read_csv(self, path_to_csv: str) -> pd.DataFrame:
         """
@@ -236,14 +189,11 @@ class RobHistoricizer(ABC):
         -------
             A `pandas DataFrame` holding raw information about rescued seal pups.
         """
-        pdf_file_reader = PdfFileReader(copy(pdf_file))
-        num_pages_pdf = pdf_file_reader.numPages
-        creation_date = pdf_file_reader.documentInfo["/ModDate"]
-        creation_date = datetime.strptime(
-            creation_date.replace("'", ""), "D:%Y%m%d%H%M%S%z"
-        )
+        pdf_reader = PdfReader(copy(pdf_file))
+        num_pages_pdf = len(pdf_reader.pages)
+        creation_date = pdf_reader.metadata.creation_date
 
-        # Page 1: has a different format than the remaining pages, and needs, thus, a different `area` value
+        # Page 1: has a different format than the remaining pages, and, thus, needs a different `area` value
         df = tabula.read_pdf(
             copy(pdf_file),
             pages="1",
@@ -306,66 +256,31 @@ class RobHistoricizer(ABC):
 
         Returns
         -------
-        A dictionary with keys `raw_finding_place`, `suggested_finding_place`, `suggested_long`, and `suggested_lat`.
+        A dictionary with keys `raw_finding_place` and `suggested_finding_place`.
         """
+
         try:
-            suggested_finding_place = difflib.get_close_matches(
-                finding_place, self.df_finding_places["Name"], n=1, cutoff=0.0
+            closest_match = difflib.get_close_matches(
+                finding_place,
+                list(self.dict_finding_place_corrections.keys()) + list(self.df_finding_places["Name"]),  # TODO drop NA
+                n=1,
+                cutoff=0.0
             )[0]
+            try:
+                suggested_finding_place = self.dict_finding_place_corrections[closest_match]
+            except KeyError:
+                suggested_finding_place = closest_match
         except TypeError as error:
             if np.isnan(finding_place):
                 suggested_finding_place = "Unknown"
             else:
                 print(error)
                 raise
-        lat, long = self.df_finding_places.loc[
-            self.df_finding_places["Name"] == suggested_finding_place, ["Lat", "Long"]
-        ].to_numpy()[0]
 
         return {
             "raw_finding_place": finding_place,
-            "suggested_finding_place": suggested_finding_place,
-            "suggested_long": float(long),
-            "suggested_lat": float(lat),
+            "suggested_finding_place": suggested_finding_place
         }
-
-    @staticmethod
-    def _show_rob_cleaned(df_rob_cleaned: pd.DataFrame) -> PandasGui:
-        """
-        Shows `df_rob_cleaned` in a `PandasGui` and allows for manual correction. The corrected data frame is saved as
-        an attribute of the `PandasGui` instance.
-
-        Returns
-        -------
-        An instance of class `PandasGui`.
-        """
-        # TODO refactor so that only unique location mappings are shown
-        rob_gui = RobGui(
-            df_rob_cleaned=df_rob_cleaned.sort_values(
-                by=["Erstellt_am", "Einlieferungsdatum"], ascending=False
-            )
-        )
-        rob_gui.caller_stack = inspect.currentframe().f_back
-
-        # Register IPython magic
-        try:
-
-            @register_line_magic
-            def pg(line):
-                rob_gui.store.eval_magic(line)
-                return line
-
-        except Exception as e:
-            # Let this silently fail if no IPython console exists
-            if (
-                e.args[0]
-                == "Decorator can only run in context where `get_ipython` exists"
-            ):
-                pass
-            else:
-                raise e
-
-        return rob_gui
 
     @staticmethod
     def _compute_hash(df_columns2hash: pd.DataFrame) -> pd.Series:
@@ -464,39 +379,110 @@ class RobHistoricizer(ABC):
             [self.read_rob_raw(rob_raw) for rob_raw in self.rob_raw]
         ).reset_index(drop=True)
 
-        # Suggest spelling corrections for location names and provide geo coordinates
-        df_location_names_cleaned = pd.concat(
-            [
-                pd.DataFrame(
-                    data=self.clean_location_name(location_name), index=[index]
+        raw_finding_places = df_rob_raw["Fundort"].unique()
+        new_finding_places = [
+            finding_place for finding_place in raw_finding_places
+            if finding_place not in
+               list(self.dict_finding_place_corrections.keys()) + list(self.df_finding_places["Name"])
+        ]
+
+        # Suggest spelling corrections for location names
+        df_suggested_finding_places = pd.DataFrame(
+            [self.clean_location_name(finding_place) for finding_place in new_finding_places]
+        )
+
+        # Join geo positions and show imprecise corrections for manual review
+        df_corrected_finding_places = (
+            pd.merge(
+                df_suggested_finding_places,
+                self.df_finding_places,
+                left_on="suggested_finding_place", right_on="Name", how="left"
+            )
+            .drop(columns=["Name"])
+            .rename(columns={
+                "raw_finding_place": "Raw Finding Place",
+                "suggested_finding_place": "Suggested Finding Place",
+                "Lat": "Suggested Lat",
+                "Long": "Suggested Long"
+            })
+            .sort_values(by="Suggested Finding Place")
+            .reset_index(drop=True)
+        )
+        df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]] = None, None, None
+        df_corrected_finding_places = df_corrected_finding_places[
+            ["Raw Finding Place", "Suggested Finding Place", "Corrected Finding Place",
+             "Suggested Lat", "Corrected Lat", "Suggested Long", "Corrected Long"]
+        ]
+
+        is_incorrect = (
+            df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+            .isnull().values.any()
+        )
+        is_inconsistent = not (
+            df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+            .drop_duplicates()["Corrected Finding Place"]
+            .is_unique
+        )
+        while is_incorrect or is_inconsistent:
+            df_corrected_finding_places = (
+                show(df_corrected_finding_places)
+                .get_dataframes("df_corrected_finding_places")
+            )
+            is_incorrect = (
+                df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+                .isnull().values.any()
+            )
+            is_inconsistent = not (
+                df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+                .drop_duplicates()["Corrected Finding Place"]
+                .is_unique
+            )
+            if is_incorrect:
+                print("""Some finding places are still uncorrected, please provide the missing values.""")
+            if is_inconsistent:
+                print(
+                    """
+                    Some finding places have inconsistent longitude and latitude values, please correct the provided 
+                    coordinates.
+                    """
                 )
-                for index, location_name in df_rob_raw["Fundort"].items()
-            ]
+
+        # Store new finding place corrections
+        dict_new_finding_place_corrections = self.dict_finding_place_corrections.copy()
+        dict_new_finding_place_corrections.update(
+            self._create_corrections_dict(
+                df_corrected_finding_places.copy()
+                [df_corrected_finding_places["Raw Finding Place"] !=
+                 df_corrected_finding_places["Corrected Finding Place"]]
+                [["Raw Finding Place", "Corrected Finding Place"]]
+                .rename(columns={"Raw Finding Place": "Original", "Corrected Finding Place": "Correction"})
+            )
+        )
+        self.dict_new_finding_place_corrections = dict_new_finding_place_corrections
+
+        # Store new finding places
+        self.df_new_finding_places = (
+            pd.concat([
+                df_corrected_finding_places.copy()[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+                .rename(columns={"Corrected Finding Place": "Name", "Corrected Lat": "Lat", "Corrected Long": "Long"}),
+                self.df_finding_places
+            ], ignore_index=True)
+            .drop_duplicates()
+            .sort_values(by="Name")
         )
 
-        # Join information and show for manual correction
-        df_rob_cleaned = df_location_names_cleaned.join(
-            df_rob_raw.drop(columns=["Fundort"])
-        )
-
-        self.df_rob_cleaned, df_new_finding_places = itemgetter(
-            "df_rob_manually_corrected", "df_new_finding_places"
-        )(self._show_rob_cleaned(df_rob_cleaned).get_dataframes())
+        # Correct finding places
+        df_rob_cleaned = df_rob_raw.copy()
+        df_rob_cleaned["Fundort"] = df_rob_raw["Fundort"].replace(to_replace=self.dict_new_finding_place_corrections)
+        self.df_rob_cleaned = pd.merge(
+            df_rob_cleaned, self.df_new_finding_places,
+            how="left", left_on="Fundort", right_on="Name"
+        )[["Fundort", "Lat", "Long", "Einlieferungsdatum", "Tierart", "Aktuell", "Erstellt_am"]]
 
         # Historicize the information in `self.df_rob_cleaned`
-        df_new_rob_historicized = self.historicize_rob()
-
-        # Save `df_new_finding_places` and `df_new_rob_historicized`
-        self.df_new_finding_places = (
-            pd.concat(
-                [self.df_finding_places, df_new_finding_places], ignore_index=True
-            )
-            .drop_duplicates()
-            .sort_values(by="Name")[["Name", "Lat", "Long"]]
-        )
         self.df_new_rob_historicized = pd.concat(
-            [self.df_rob_historicized, df_new_rob_historicized], ignore_index=True
-        ).sort_values(by=["Einlieferungsdatum", "Tierart", "Fundort"])[
+            [self.df_rob_historicized, self.historicize_rob()], ignore_index=True
+        ).sort_values(by=["Einlieferungsdatum", "Tierart", "Fundort", "Erstellt_am"])[
             [
                 "Sys_id",
                 "Fundort",
@@ -520,13 +506,33 @@ class RobHistoricizer(ABC):
             ),
         )
         self._write_csv(
+            pd.DataFrame({
+                "Original": self.dict_new_finding_place_corrections.keys(),
+                "Correction": self.dict_new_finding_place_corrections.values()
+            }),
+            self.path_join.join(
+                [self.path_to_interim_data, "finding_place_corrections.csv"]
+            ),
+        )
+        self._write_csv(
             self.df_new_rob_historicized,
             self.path_join.join([self.path_to_deployment_data, "rob.csv"]),
         )
+
         # local (for clearml versioning)
         self.df_new_finding_places.to_csv(
             os.path.join(PATH_TO_OUT, "catalogued_finding_places.csv"),
             index=False,
+        )
+        (
+            pd.DataFrame({
+                "Original": self.dict_new_finding_place_corrections.keys(),
+                "Correction": self.dict_new_finding_place_corrections.values()
+            })
+            .sort_values(by="Correction")
+            .to_csv(
+                os.path.join(PATH_TO_OUT, "finding_place_corrections.csv"), index=False
+            )
         )
         self.df_new_rob_historicized.to_csv(
             os.path.join(PATH_TO_OUT, "rob.csv"), index=False
@@ -672,7 +678,7 @@ class RobHistoricizerAWS(RobHistoricizer):
         2. Corrects spelling mistakes in the names of finding places in the raw data and adds geo-coordinates
         3. Updates the catalogued finding places
         4. Saves the cleaned input data and catalogued finding places to the local file system
-        4. Creates a new version of the cleaned input data and catalogued finding places on clear-ml (https://clear.ml/)
+        5. Creates a new version of the cleaned input data and catalogued finding places on clear-ml (https://clear.ml/)
 
         Returns
         -------
@@ -776,11 +782,12 @@ class RobHistoricizerLocal(RobHistoricizer):
 
     @staticmethod
     def _write_csv(df: pd.DataFrame, path_to_csv: str) -> None:
-        df.to_csv(path_to_csv)
+        df.to_csv(path_to_csv, index=False)
 
 
 if __name__ == "__main__":
-    historicizer_class = ["aws", "local"][0]
+    historicizer_class: Literal["aws", "local"] = "aws"
+
     if historicizer_class == "aws":
         rob_historicizer = RobHistoricizerAWS()
     elif historicizer_class == "local":
