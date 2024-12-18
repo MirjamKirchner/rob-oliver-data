@@ -262,9 +262,13 @@ class RobHistoricizer(ABC):
         try:
             closest_match = difflib.get_close_matches(
                 finding_place,
-                pd.Series(
-                    list(self.dict_finding_place_corrections.keys()) + list(self.df_finding_places["Name"])
-                ).dropna(),
+                (
+                    pd.Series(
+                        list(self.dict_finding_place_corrections.keys()) + list(self.df_finding_places["Name"])
+                    )
+                    .dropna()
+                    .to_list()
+                ),
                 n=1,
                 cutoff=0.0
             )[0]
@@ -387,49 +391,38 @@ class RobHistoricizer(ABC):
             if finding_place not in
                list(self.dict_finding_place_corrections.keys()) + list(self.df_finding_places["Name"])
         ]
+        dict_new_finding_place_corrections = self.dict_finding_place_corrections.copy()
+        df_new_finding_places = self.df_finding_places.copy()
 
-        # Suggest spelling corrections for location names
-        df_suggested_finding_places = pd.DataFrame(
-            [self.clean_location_name(finding_place) for finding_place in new_finding_places]
-        )
-
-        # Join geo positions and show imprecise corrections for manual review
-        df_corrected_finding_places = (
-            pd.merge(
-                df_suggested_finding_places,
-                self.df_finding_places,
-                left_on="suggested_finding_place", right_on="Name", how="left"
+        if len(new_finding_places) > 0:
+            # Suggest spelling corrections for location names
+            df_suggested_finding_places = pd.DataFrame(
+                [self.clean_location_name(finding_place) for finding_place in new_finding_places]
             )
-            .drop(columns=["Name"])
-            .rename(columns={
-                "raw_finding_place": "Raw Finding Place",
-                "suggested_finding_place": "Suggested Finding Place",
-                "Lat": "Suggested Lat",
-                "Long": "Suggested Long"
-            })
-            .sort_values(by="Suggested Finding Place")
-            .reset_index(drop=True)
-        )
-        df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]] = None, None, None
-        df_corrected_finding_places = df_corrected_finding_places[
-            ["Raw Finding Place", "Suggested Finding Place", "Corrected Finding Place",
-             "Suggested Lat", "Corrected Lat", "Suggested Long", "Corrected Long"]
-        ]
 
-        is_incorrect = (
-            df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
-            .isnull().values.any()
-        )
-        is_inconsistent = not (
-            df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
-            .drop_duplicates()["Corrected Finding Place"]
-            .is_unique
-        )
-        while is_incorrect or is_inconsistent:
+            # Join geo positions and show imprecise corrections for manual review
             df_corrected_finding_places = (
-                show(df_corrected_finding_places)
-                .get_dataframes("df_corrected_finding_places")
+                pd.merge(
+                    df_suggested_finding_places,
+                    self.df_finding_places,
+                    left_on="suggested_finding_place", right_on="Name", how="left"
+                )
+                .drop(columns=["Name"])
+                .rename(columns={
+                    "raw_finding_place": "Raw Finding Place",
+                    "suggested_finding_place": "Suggested Finding Place",
+                    "Lat": "Suggested Lat",
+                    "Long": "Suggested Long"
+                })
+                .sort_values(by="Suggested Finding Place")
+                .reset_index(drop=True)
             )
+            df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]] = None, None, None
+            df_corrected_finding_places = df_corrected_finding_places[
+                ["Raw Finding Place", "Suggested Finding Place", "Corrected Finding Place",
+                 "Suggested Lat", "Corrected Lat", "Suggested Long", "Corrected Long"]
+            ]
+
             is_incorrect = (
                 df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
                 .isnull().values.any()
@@ -439,39 +432,55 @@ class RobHistoricizer(ABC):
                 .drop_duplicates()["Corrected Finding Place"]
                 .is_unique
             )
-            if is_incorrect:
-                print("""Some finding places are still uncorrected, please provide the missing values.""")
-            if is_inconsistent:
-                print(
-                    """
-                    Some finding places have inconsistent longitude and latitude values, please correct the provided 
-                    coordinates.
-                    """
+            while is_incorrect or is_inconsistent:
+                df_corrected_finding_places = (
+                    show(df_corrected_finding_places)
+                    .get_dataframes("df_corrected_finding_places")
                 )
+                is_incorrect = (
+                    df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+                    .isnull().values.any()
+                )
+                is_inconsistent = not (
+                    df_corrected_finding_places[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+                    .drop_duplicates()["Corrected Finding Place"]
+                    .is_unique
+                )
+                if is_incorrect:
+                    print("""Some finding places are still uncorrected, please provide the missing values.""")
+                if is_inconsistent:
+                    print(
+                        """
+                        Some finding places have inconsistent longitude and latitude values, please correct the provided 
+                        coordinates.
+                        """
+                    )
 
-        # Store new finding place corrections
-        dict_new_finding_place_corrections = self.dict_finding_place_corrections.copy()
-        dict_new_finding_place_corrections.update(
-            self._create_corrections_dict(
-                df_corrected_finding_places.copy()
-                [df_corrected_finding_places["Raw Finding Place"] !=
-                 df_corrected_finding_places["Corrected Finding Place"]]
-                [["Raw Finding Place", "Corrected Finding Place"]]
-                .rename(columns={"Raw Finding Place": "Original", "Corrected Finding Place": "Correction"})
+            # Store new finding place corrections
+            dict_new_finding_place_corrections.update(
+                self._create_corrections_dict(
+                    df_corrected_finding_places.copy()
+                    [df_corrected_finding_places["Raw Finding Place"] !=
+                     df_corrected_finding_places["Corrected Finding Place"]]
+                    [["Raw Finding Place", "Corrected Finding Place"]]
+                    .rename(columns={"Raw Finding Place": "Original", "Corrected Finding Place": "Correction"})
+                )
             )
-        )
-        self.dict_new_finding_place_corrections = dict_new_finding_place_corrections
 
-        # Store new finding places
-        self.df_new_finding_places = (
-            pd.concat([
-                df_corrected_finding_places.copy()[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
-                .rename(columns={"Corrected Finding Place": "Name", "Corrected Lat": "Lat", "Corrected Long": "Long"}),
-                self.df_finding_places
-            ], ignore_index=True)
-            .drop_duplicates()
-            .sort_values(by="Name")
-        )
+            # Store new finding places
+            df_new_finding_places = (
+                pd.concat([
+                    df_corrected_finding_places.copy()[["Corrected Finding Place", "Corrected Lat", "Corrected Long"]]
+                    .rename(
+                        columns={"Corrected Finding Place": "Name", "Corrected Lat": "Lat", "Corrected Long": "Long"}),
+                    self.df_finding_places
+                ], ignore_index=True)
+                .drop_duplicates()
+                .sort_values(by="Name")
+            )
+
+        self.df_new_finding_places = df_new_finding_places
+        self.dict_new_finding_place_corrections = dict_new_finding_place_corrections
 
         # Correct finding places
         df_rob_cleaned = df_rob_raw.copy()
